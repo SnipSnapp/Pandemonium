@@ -5,28 +5,37 @@ class Snort_Rule():
     rule_actions = ['alert','block','drop','log','pass']
     rule_protocols = ['ip','icmp','tcp','udp']
     rule_gen_opts = ['msg:','reference:','gid:','sid:','rev:','classtype:','priority:','metadata:service','metadata:','content:','distance:','base64_decode:','base64_data','isdataat:','flow:','within:']
-    IP_RE      = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d|(?:\.\d))(?!\/)")
-    IP_CIDR_RE = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}(?!\d|(?:\.\d))")
+    IP_RE      = re.compile(r"(!){0,1}(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d|(?:\.\d))(?!\/)")
+    IP_CIDR_RE = re.compile(r"(!){0,1}(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
     #Will take the last 5 characters of a digit string if the digit is longer than 5
-    PORT_RE = re.compile(r"([1-9]){1}([0-9]){0,4}(?!\d)")
+    PORT_RE = re.compile(r"(!){0,1}(:){0,1}([1-9]){1}([0-9]){0,4}(?!\d)(:){0,1}(([1-9]){1}([0-9]){0,4}(?!\d)){0,1}")
     RULE_RE = re.compile(r"(alert|block|drop|log|pass)(.+)(\))")
     RC_RE = re.compile(r"(\(.?+\))")
 
     def __init__(self,input, config):
         rules = None
-        self.rules = {}
+        #line below defined rule names twice, made things weird. temp removal for testing purposes.
+        #self.rules = {}
+        #Defining as a list
+        self.rules = []
+        self.rule_name = ''
+
         self.ip_vars = {}
         self.port_vars = {}
+        self.my_pcap = None
         self.__set_vars__(config)
         rules = re.findall(self.RULE_RE,input)
+        
         for i in rules:
             rh = self.__get_rule_header__(''.join(i))
             rp = self.__get_rule_params__(''.join(i))
             vl = [rh,rp]
-            vlus = {self.__get_rule_name__(''.join(i)):vl}
-            self.rules.update(vlus)
-        print(str(self.rules) + '\n')      
-
+            self.rule_name = self.__get_rule_name__(''.join(i))
+            #temp removal from the double naming convention times
+            #vlus = {self.__get_rule_name__(''.join(i)):vl}
+            #self.rules.update(vlus)
+            self.rules=vl
+            
     def __get_rule_params__(self, rule):
         content = re.search(r'(\(.+?\))', rule).group()
         content = content[1:len(content)-1].split(';')
@@ -45,9 +54,7 @@ class Snort_Rule():
                 content[start-1:start] = [''.join(content[start-1:start])]
             #strip leading whitespace to tokenize
             if content[start].startswith(' '):
-                content[start] = content[start][1:]
-
-        
+                content[start] = content[start][1:]    
         for param in content:
             for i in self.rule_gen_opts:
                 if param.lower().startswith(i):
@@ -56,15 +63,21 @@ class Snort_Rule():
                         chunk =  chunk + 1                
                     services.append({i:param[chunk:]})
                     
+                    
                     break
         return services
         
     def __get_rule_name__(self,rules_list):
         try:
             return re.search(r'(reference:)(.+?)(\;){1}',rules_list).group().strip(';').replace('reference:','')
+                 
         except:
-            return re.search(r'(msg:)(.+?)(\;){1}',rules_list).group().strip(';').replace('msg:','')
-
+            return re.search(r'(msg:)(.+?)(\;){1}',rules_list).group().strip(';').replace('msg:','')  
+            
+            
+    def return_name(self):
+        return self.rule_name
+        #return list(self.rules.keys())[0]
 
     def __set_vars__(self,config):
         if config is None:
@@ -128,10 +141,9 @@ class Snort_Rule():
         else:
             raise Exception("No Rule Action Found, Skipping...")
         if rule_params[1].lower() in self.rule_protocols:
-            rule_protocol = rule_params[1].lower
+            rule_protocol = rule_params[1].lower()
         else:
             raise Exception("No Rule Protocol Found, Skipping...")
-
         if rule_params[2].upper() in self.ip_vars:
             rule_ip_src = self.ip_vars[rule_params[2]]
         elif self.IP_CIDR_RE.match(rule_params[2]) or self.IP_RE.match(rule_params[2]):
@@ -148,5 +160,12 @@ class Snort_Rule():
             rule_ip_dst = rule_params[5]
         else:
             raise Exception("No Rule Dest IP Found. Do you have an undefined ipvar? Skipping...")
-        return {'rule_action':rule_action,'rule_ip_src':rule_ip_src,'rule_src_p':rule_src_p,'rule_direction':rule_direction,'rule_ip_dst':rule_ip_dst,'rule_dst_p':rule_dst_p}
+        return {'rule_action':rule_action,'protocol':rule_protocol, 'rule_ip_src':rule_ip_src,'rule_src_p':rule_src_p,'rule_direction':rule_direction,'rule_ip_dst':rule_ip_dst,'rule_dst_p':rule_dst_p}
         
+    def get_pcap_build_struct(self):
+        if self.my_pcap is None:
+            self.build_pcap()
+        return self.my_pcap
+   
+    def build_pcap(self):
+        return 0
