@@ -1,6 +1,7 @@
 import re
 import os
 from .snort_rule import Snort_Rule
+
 class Snort_Engine():
     rule_actions = ['alert','block','drop','log','pass']
     rule_protocols = ['ip','icmp','tcp','udp']
@@ -16,10 +17,12 @@ class Snort_Engine():
             rule_folder = rule_folder + '/'
         for count,fname in enumerate(self.rule_files):
             self.rule_files[count] = rule_folder + fname
-
-        print(self.rule_files)
+        print("parsing rules...")
         self.__parse_rule_files__()
-       
+        self.rules_list = list(self.rules.keys())
+        self.__select_rule__()
+
+
     def __parse_rule_files__(self):
         for rule_f in self.rule_files:
             rulez = []
@@ -29,9 +32,28 @@ class Snort_Engine():
                     f.close
                 matches = re.findall(self.RULE_MATCH,rulez)
                 for x in matches:
-                    self.rules.update({x:Snort_Rule(''.join(x),self.config)})
-                exit(0)
+                    rl = Snort_Rule(''.join(x),self.config)
+                    increment = 0
+                    rname = rl.return_name()
+                    while rname in self.rules:
+                        increment +=1
+                        rname = rl.return_name() +'-'+ str(increment)
+
+                    self.rules.update({rname:rl})
+                    print("parsed rule: " + rname)
+                    #self.rules.update({x:Snort_Rule(''.join(x),self.config)})
+                print("parsed rule file: " + rule_f)
             else:
-                print("PATH DNE")
+                print("Snort rule file path DNE: " + rule_f)
                 exit(0)
+           
             
+    def __select_rule__(self):
+        self.play_pcap(self.rules)
+
+    def play_pcap(self, rule):
+        
+        rule_definition = self.rules['bugtraq,57842'].rules
+        print(rule_definition[0])
+        
+        exit(0)
