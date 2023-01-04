@@ -54,6 +54,12 @@ class Snort_Engine():
     def play_pcap(self, rule):
         
         rule_definition = self.rules['bugtraq,57842'].rules
+        print('\n')
         print(rule_definition[0])
+        print('\n')
+        print(rule_definition[1][0][0])
         
         exit(0)
+
+    
+    
