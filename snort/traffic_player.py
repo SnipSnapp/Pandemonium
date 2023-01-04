@@ -2,10 +2,11 @@ from scapy.all import *
 from pprint import pprint
 from random import randrange
 from ipaddress import IPv4Network, IPv4Address
-
+#Doesn't quite need to be a class, but I don't feel comfortable not leaving as a function.
 import re
 IP_CIDR_RE = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
 BLACKLIST_IPS = []
+KNOWN_SERVICES= ['pop3']
 TEMP_BAD = None
 
 with open('Snort/config/blacklist_ips.txt', 'r') as f:
@@ -17,11 +18,21 @@ for i,ele in enumerate(BLACKLIST_IPS):
 
 #------------------------------------------------------------------#
 def build_traffic(header,contents):
+    #rule header build
     traffic_protocol = header['protocol']
     client = get_ip_address(header['rule_ip_src'])
     client_port = get_port(header['rule_src_p'])
-    print(client)
+    server = get_ip_address(header['rule_ip_dst'])
+    server_port = get_port(header['rule_dst_p'])
+    #Rule contents build
+    payload_form = get_flow(header['flow'])
+    
+    payload_service = get_service(contents['metadata:service'])
 
+
+    print(client)
+#Potential for infinite loops below function.  Future: Get rid of by checking the src. IP ranges and only finding IP addresses for randomization outside.
+#Also Need to include RFC 1918 addresses for random IP addresses for local IPs for hosts.
 def get_ip_address(hostname):
 
     my_ip = None
@@ -82,8 +93,37 @@ def check_blacklist_ip(my_ip):
     return bad
 
 def get_port(port):
-    
-    exit(0)
+    if str(port) == 'any':
+        return randrange(1,65535)
+    elif str(port).startswith(':'):
+        return randrange(1,int(port[1:]))
+    elif str(port).endswith(':'):
+        return randrange(int(port[1:]),65535)
+    elif ':' in str(port):
+        nums = str(port).split(':')    
+        return randrange(int(nums[0]),int(nums[1]))
+    else:
+        return randrange(port)
+
+def get_flow(flow):
+    payload_direction='from_client'
+    payload_form = None
+    if ',' in flow:
+        parameters = flow.split(',')
+        if parameters[0] in 'to_client' or parameters[0] in 'from_server':
+            payload_direction = 'from_server'
+        payload_form = payload_form
+    else:
+        if flow in 'to_client' or flow in 'from_server':
+            payload_direction = 'from_server'
+    return [payload_direction,payload_form]
+
+def get_service(svc):
+    for svc
+    if svc not in KNOWN_SERVICES :
+        return None
+    else:
+        return svc
 
 header = {'rule_action': 'alert', 'protocol': 'tcp', 'rule_ip_src': 'any', 'rule_src_p': '110', 'rule_direction': '->', 'rule_ip_dst': 'any', 'rule_dst_p': 'any'}
 build_traffic(header, None)
