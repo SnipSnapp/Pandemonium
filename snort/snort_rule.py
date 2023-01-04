@@ -60,8 +60,11 @@ class Snort_Rule():
                 if param.lower().startswith(i):
                     chunk = len(i)
                     if param[len(i):len(i)+1] == ' ':
-                        chunk =  chunk + 1                
-                    services.append({i:param[chunk:]})
+                        chunk =  chunk + 1    
+                    #removing services as a dict addition            
+                    #services.append({i:param[chunk:]})
+                    addition = [i,chunk]
+                    services.append(addition)
                     
                     
                     break
