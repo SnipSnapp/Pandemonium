@@ -98,19 +98,41 @@ class traffic_player:
 
         client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
         send(client_A)
+        serv_pload = None
+        client_payload = None
         if self.payload_flow[0] == 'from_server':
-            Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA', seq = client_A.seq, ack = client_A.ack)/self.payload
-            send(Server_payload)
-            
-            Client_Resp_1 = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='PA', seq = Server_payload.seq, ack = len(Server_payload[Raw].load))/"Garbagesauce"
-            send(Client_Resp_1)
+            serv_pload = self.payload
+            client_payload = bytearray(randbytes(randrange(1,len(self.payload))))
+        else:
+            serv_pload = bytearray(randbytes(randrange(1,len(self.payload))))
+            client_payload = self.payload
+        
+        Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA', seq = client_A.seq, ack = client_A.ack)/serv_pload
+        send(Server_payload)
+        
+        Client_Resp_1 = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='PA', seq = Server_payload.seq, ack = len(Server_payload[Raw].load))/client_payload
+        send(Client_Resp_1)
 
 
-            client_A = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='A',seq = Server_payload.seq, ack= len(Server_payload[Raw].load))
-            send(client_A)
+        client_A = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='A',seq = Server_payload.seq, ack= len(Server_payload[Raw].load))
+        send(client_A)
 
-            server_A = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='A', seq = Server_payload.seq, ack=len(Server_payload[Raw].load))
-            send(server_A)
+        server_A = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='A', seq = Server_payload.seq, ack=len(Client_Resp_1[Raw].load))
+        send(server_A)
+
+        server_pre_fin_psh = server_IP_Layer/TCP(sport = self.server_port,dport = self.client_port, flags='FPA', seq = len(Server_payload[Raw].load) + 1, ack = len(Client_Resp_1[Raw].load) )/bytearray(randbytes(randrange(1,len(Client_Resp_1[Raw].load))))
+        send(server_pre_fin_psh)
+
+        client_FA = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags='FA', seq=len(Client_Resp_1[Raw].load)+ 1, ack=len(server_pre_fin_psh[Raw].load))
+        send(client_FA)
+
+        serv_fin_ack = server_IP_Layer/TCP(sport=self.server_port, dport=self.client_port, flags='A', seq=client_FA.ack, ack=client_FA.seq +1)
+        send(serv_fin_ack)
+        #send(serv_signoff)
+
+
+
+
 
         exit(0)    
     def send_traffic(self):
