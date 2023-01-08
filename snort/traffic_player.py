@@ -7,6 +7,7 @@ from ipaddress import IPv4Network, IPv4Address
 import re
 IP_CIDR_RE = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
 BLACKLIST_IPS = []
+BLACKLIST_PORTS = []
 KNOWN_SERVICES= ['pop3']
 CONTENT_MODIFIERS = ['depth:','offset:','distance:','within:','http_header:','isdataat:']
 TEMP_BAD = ''
@@ -19,8 +20,15 @@ with open('Snort/config/blacklist_ips.txt', 'r') as f:
 for i,ele in enumerate(BLACKLIST_IPS):
     BLACKLIST_IPS[i] = ele.strip()
 
+with open('Snort/config/blacklist_ports.txt','r') as f:
+    BLACKLIST_PORTS = f.readlines()
+    f.close
+for i,ele in enumerate(BLACKLIST_PORTS):
+    BLACKLIST_PORTS[i] = int(ele.strip())
+
+
 #------------------------------------------------------------------#
-def build_traffic(header,contents):
+def build_traffic(header,contents, randomize_Mac):
     #rule header build
     
     traffic_protocol = header['protocol']
@@ -39,6 +47,15 @@ def build_traffic(header,contents):
     print("--Payload--")
     #print(payload.decode(encoding='latin_1'))
     print(payload)
+    print(len(payload))
+    print(int(math.log2(len(payload)*8)) + 1)
+    
+def send_traffic():
+    if
+    exit()
+
+def random_mac():
+    return 
 
 #Potential for infinite loops below function.  Future: Get rid of by checking the src. IP ranges and only finding IP addresses for randomization outside.
 #Also Need to include RFC 1918 addresses for random IP addresses for local IPs for hosts.
@@ -102,17 +119,27 @@ def check_blacklist_ip(my_ip):
     return bad
 
 def get_port(port):
+    my_port = 0
     if str(port) == 'any':
-        return randrange(1,65535)
+        my_port = randrange(1,65535)
+        while my_port in BLACKLIST_PORTS:
+            my_port = randrange(1,65535)
     elif str(port).startswith(':'):
-        return randrange(1,int(port[1:]))
+        my_port = randrange(1,int(port[1:]))
+        while my_port in BLACKLIST_PORTS:
+            my_port = randrange(1,int(port[1:]))
     elif str(port).endswith(':'):
-        return randrange(int(port[1:]),65535)
+        my_port =  randrange(int(port[1:]),65535)
+        while my_port in BLACKLIST_PORTS:
+            my_port = randrange(int(port[1:]),65535)
     elif ':' in str(port):
         nums = str(port).split(':')    
-        return randrange(int(nums[0]),int(nums[1]))
+        my_port =  randrange(int(nums[0]),int(nums[1]))
+        while my_port in BLACKLIST_PORTS:
+            my_port = randrange(int(nums[0]),int(nums[1]))
     else:
         return int(port)
+    return my_port
 
 def get_flow(cont):
     flow = ''
