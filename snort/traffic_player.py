@@ -6,6 +6,7 @@ from ipaddress import IPv4Network, IPv4Address
 #Doesn't quite need to be a class, but I don't feel comfortable not leaving as a function.
 import re
 IP_CIDR_RE = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
+HEX_IDENTIFIER = re.compile(r"((\|)((\d\d)( ){0,}){1,}(\|))")
 BLACKLIST_IPS = []
 BLACKLIST_PORTS = []
 KNOWN_SERVICES= ['pop3']
@@ -138,7 +139,11 @@ class traffic_player:
     def send_traffic(self):
         print(self.payload_flow[1])
         if self.payload_flow[1] == 'established':
-            self.send_full_convo()
+            if self.traffic_protocol == 'tcp':
+                self.send_full_convo()
+            else:
+                exit(0)
+        
             exit(0)
     
 
@@ -322,11 +327,18 @@ def get_content(le_string):
             if (' ' in itemz or len(itemz) > 1):
                 payload_content.extend( bytearray.fromhex(itemz))
             if len(itemz) > 0 :
-                payload_content.extend(itemz.encode('utf-8'))
+                payload_content.extend(itemz.encode('latin_1'))
     else:
-        payload_content.extend(content.encode('utf-8'))
+        content = re.sub(HEX_IDENTIFIER,hex_match,content)
+        payload_content.extend(content.encode('latin_1'))
     return payload_content
 
+def hex_match(the_match):
+    match1 = the_match.group().strip('|')
+    content = bytearray.fromhex(match1).decode('latin_1')
+    print(content)
+    return content
+    
 
 header = {'rule_action': 'alert', 'protocol': 'tcp', 'rule_ip_src': 'any', 'rule_src_p': '110', 'rule_direction': '->', 'rule_ip_dst': 'any', 'rule_dst_p': 'any'}
 content = [['msg:', '"PROTOCOL-POP libcurl MD5 digest buffer overflow attempt"'], ['flow:', 'to_client,established'],
