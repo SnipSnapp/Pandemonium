@@ -14,8 +14,8 @@ TEMP_BAD = ''
 BAD_HEXSTRINGS = []
 
 with open('Snort/config/blacklist_ips.txt', 'r') as f:
-    BLACKLIST_IPS = f.readlines()
-    f.close
+        BLACKLIST_IPS = f.readlines()
+        f.close
 
 for i,ele in enumerate(BLACKLIST_IPS):
     BLACKLIST_IPS[i] = ele.strip()
@@ -26,33 +26,99 @@ with open('Snort/config/blacklist_ports.txt','r') as f:
 for i,ele in enumerate(BLACKLIST_PORTS):
     BLACKLIST_PORTS[i] = int(ele.strip())
 
+class traffic_player:
 
-#------------------------------------------------------------------#
-def build_traffic(header,contents, randomize_Mac):
-    #rule header build
+
+    with open('Snort/config/blacklist_ips.txt', 'r') as f:
+        BLACKLIST_IPS = f.readlines()
+        f.close
+
+    for i,ele in enumerate(BLACKLIST_IPS):
+        BLACKLIST_IPS[i] = ele.strip()
+
+    with open('Snort/config/blacklist_ports.txt','r') as f:
+        BLACKLIST_PORTS = f.readlines()
+        f.close
+    for i,ele in enumerate(BLACKLIST_PORTS):
+        BLACKLIST_PORTS[i] = int(ele.strip())
     
-    traffic_protocol = header['protocol']
-    print(f"Protocol:{traffic_protocol}")
-    client = get_ip_address(header['rule_ip_src'])
-    client_port = get_port(header['rule_src_p'])
-    server = get_ip_address(header['rule_ip_dst'])
-    server_port = get_port(header['rule_dst_p'])
-    #Rule contents build
-    print(f"{client}:{client_port} -> {server}:{server_port}")
-    payload_form = get_flow(contents)
-    print(f"Flow:{payload_form}")
-    payload_service = get_service(contents)
-    print(f"Service:{payload_service}")
-    payload = get_payload(contents)
-    print("--Payload--")
-    #print(payload.decode(encoding='latin_1'))
-    print(payload)
-    print(len(payload))
-    print(int(math.log2(len(payload)*8)) + 1)
+    def __init__(self, header, contents, random_mac):
+        self.traffic_protocol = None
+        self.client = None
+        self.client_port = None
+        self.server = None
+        self.server_port = None
+        self.payload_flow = None
+        self.payload_service = None
+        self.payload = None
+        self.build_traffic(header,contents,random_mac)
+
+    #------------------------------------------------------------------#
+    def build_traffic(self,header,contents, randomize_Mac):
+        #rule header build    
+        self.traffic_protocol = header['protocol']
+        print(f"Protocol:{self.traffic_protocol}")
+        self.client = str(get_ip_address(header['rule_ip_src']))
+        self.client_port = get_port(header['rule_src_p'])
+        self.server = str(get_ip_address(header['rule_ip_dst']))
+        self.server_port = get_port(header['rule_dst_p'])
+        
+        print(f"{self.client}:{self.client_port} -> {self.server}:{self.server_port}")
+        #Rule contents build
+        self.payload_flow = get_flow(contents)
+        print(f"Flow:{self.payload_flow}")
+        if self.payload_flow[0] =="from_server":
+            placehold = self.client_port
+            self.client_port = self.server_port
+            self.server_port = placehold
+
+        self.payload_service = get_service(contents)
+        print(f"Service:{self.payload_service}")
+        
+        self.payload = get_payload(contents)
+        print("--Payload--")
+        #print(payload.decode(encoding='latin_1'))
+        print(self.payload)
+        print(len(self.payload))
+        print(int(math.log2(len(self.payload)*8)) + 1)
+
+    def send_full_convo(self):
+        print("Sending")
+        opts = [('SAckOK','')]
+        #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
+        #print("sent 1 I guess")
+        client_IP_Layer = IP(src=self.client, dst=self.server)
+        server_IP_Layer = IP(src=self.server,dst=self.client)
+
+        client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
+        send(client_Hello)
+
+        Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
+        send(Server_SA)
+
+        client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
+        send(client_A)
+        if self.payload_flow[0] == 'from_server':
+            Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA', seq = client_A.seq, ack = client_A.ack)/self.payload
+            send(Server_payload)
+            
+            Client_Resp_1 = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='PA', seq = Server_payload.seq, ack = len(Server_payload[Raw].load))/"Garbagesauce"
+            send(Client_Resp_1)
+
+
+            client_A = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='A',seq = Server_payload.seq, ack= len(Server_payload[Raw].load))
+            send(client_A)
+
+            server_A = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='A', seq = Server_payload.seq, ack=len(Server_payload[Raw].load))
+            send(server_A)
+
+        exit(0)    
+    def send_traffic(self):
+        print(self.payload_flow[1])
+        if self.payload_flow[1] == 'established':
+            self.send_full_convo()
+            exit(0)
     
-def send_traffic():
-    if
-    exit()
 
 def random_mac():
     return 
@@ -248,7 +314,10 @@ content = [['msg:', '"PROTOCOL-POP libcurl MD5 digest buffer overflow attempt"']
     ['reference:', 'bugtraq,57842'], ['reference:', 'cve,2013-0249'], ['classtype:', 'attempted-user'],
      ['sid:', '26391'], ['rev:', '1']]
 
-
-build_traffic(header, content)
+ok = traffic_player(header,content,False)
+ok.build_traffic(header,content,False)
+print("Build complete.")
+ok.send_traffic()
+#build_traffic(header, content)
 
 
