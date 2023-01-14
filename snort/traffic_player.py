@@ -5,6 +5,7 @@ from random import randbytes
 from ipaddress import IPv4Network, IPv4Address
 #Doesn't quite need to be a class, but I don't feel comfortable not leaving as a function.
 import re
+import base64
 IP_CIDR_RE = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
 HEX_IDENTIFIER = re.compile(r"((\|)((\d\d)( ){0,}){1,}(\|))")
 BLACKLIST_IPS = []
@@ -59,9 +60,9 @@ class traffic_player:
         #rule header build    
         self.traffic_protocol = header['protocol']
         print(f"Protocol:{self.traffic_protocol}")
-        self.client = str(get_ip_address(header['rule_ip_src']))
+        self.client = "192.168.68.60"#str(get_ip_address(header['rule_ip_src']))
         self.client_port = get_port(header['rule_src_p'])
-        self.server = str(get_ip_address(header['rule_ip_dst']))
+        self.server = "192.168.68.61"#str(get_ip_address(header['rule_ip_dst']))
         self.server_port = get_port(header['rule_dst_p'])
         
         print(f"{self.client}:{self.client_port} -> {self.server}:{self.server_port}")
@@ -279,21 +280,37 @@ def payload_helper(cont,count):
     not_flag = False
 
     if cont[count][1].startswith('!'):
-        not_flag = True
+        cont[count][1] = cont[count][1][1:]
+        not_flag=True
+
     if str(cont[count][1]).startswith('\"') :
         cont[count][1] = cont[count][1][1:-1]
     build = bytearray()
     curr_loc = count 
 
     build.extend(get_content(cont[count][1]))
+    if not_flag:
+        build = bytearray(randbytes(len(build)))
     curr_loc +=1
     paysize = 0
     offset = 0
     within = 0
     isdat =0
     #Need to check for banned hex strings.
+    inbody=False
+    off_opts = 0
+    num_b = len(build)-1
     while cont[curr_loc][0] in CONTENT_MODIFIERS and curr_loc < len(cont):
-        
+        if 'base64_decode:' == cont[curr_loc][0]:
+            the_x64data = cont[curr_loc][1].split(',')
+            for variablex64 in the_x64data:
+                if 'offset' in variablex64:
+                    off_opts = int(str(variablex64).replace('offset','').replace(' ',''))
+                if 'bytes' in cont[curr_loc][1]:
+                    num_b = int(str(variablex64).replace('bytes','').replace(' ',''))
+
+            build = bytearray(build[:off_opts] + base64.encodebytes(build[off_opts:off_opts+num_b]) + build[off_opts+num_b:])
+
         if 'depth:' == cont[curr_loc][0] or 'within:' == cont[curr_loc][0]:
             paysize += int(cont[curr_loc][1])
         if 'isdataat:' == cont[curr_loc][0]:
@@ -303,15 +320,18 @@ def payload_helper(cont,count):
 
         if 'offset:' == cont[curr_loc][0] or 'distance:' == cont[curr_loc][0]:
             offset += int(cont[curr_loc][1])
+        if 'http_client_body:' == cont[curr_loc][0]:
+            inbody=True
         curr_loc +=1
+
     if isdat > 0:
         build.extend(randbytes(isdat))
     if offset > 0:
         build = bytearray(randbytes(offset)) + build
     if paysize > 0:
         build.extend(randbytes(randrange(0,paysize)))
-    if not_flag:
-        build = bytearray(randbytes(len(build)))
+    if inbody:
+        '<body>'.encode('latin_1')+build.decode('latin_1')+'<body>'
     return build,curr_loc
 
 def get_content(le_string):
@@ -319,11 +339,13 @@ def get_content(le_string):
     payload_content = bytearray()
     if content.startswith('\"') and content.endswith('\"'):
         content = content[1:-1]
-
+    print(content)
     if content.startswith('|') and content.endswith('|'):
         content = content[1:-1]
+        
         content = content.split('|')
-        for itemz in content_vars:
+        print(type(content))
+        for itemz in content:
             if (' ' in itemz or len(itemz) > 1):
                 payload_content.extend( bytearray.fromhex(itemz))
             if len(itemz) > 0 :
@@ -353,5 +375,3 @@ ok.build_traffic(header,content,False)
 print("Build complete.")
 ok.send_traffic()
 #build_traffic(header, content)
-
-
