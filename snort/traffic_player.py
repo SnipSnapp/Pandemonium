@@ -6,12 +6,12 @@ from ipaddress import IPv4Network, IPv4Address
 #Doesn't quite need to be a class, but I don't feel comfortable not leaving as a function.
 import re
 import base64
-IP_CIDR_RE = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
-HEX_IDENTIFIER = re.compile(r"((\|)((\d\d)( ){0,}){1,}(\|))")
+IP_CIDR_RE = re.compile(r'(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))')
+HEX_IDENTIFIER = re.compile(r'((\|)((\d\d)( ){0,}){1,}(\|))')
 BLACKLIST_IPS = []
 BLACKLIST_PORTS = []
 KNOWN_SERVICES= ['pop3']
-CONTENT_MODIFIERS = ['depth:','offset:','distance:','within:','http_header:','isdataat:']
+CONTENT_MODIFIERS = ['depth:','offset:','distance:','within:','http_header:','isdataat:','base64_decode:','base64_data']
 TEMP_BAD = ''
 BAD_HEXSTRINGS = []
 
@@ -44,7 +44,7 @@ class traffic_player:
     for i,ele in enumerate(BLACKLIST_PORTS):
         BLACKLIST_PORTS[i] = int(ele.strip())
     
-    def __init__(self, header, contents, random_mac):
+    def __init__(self, header, contents, client_mac, server_mac):
         self.traffic_protocol = None
         self.client = None
         self.client_port = None
@@ -53,7 +53,26 @@ class traffic_player:
         self.payload_flow = None
         self.payload_service = None
         self.payload = None
+        self.client_mac = None
+        self.server_mac = None
         self.build_traffic(header,contents,random_mac)
+        if client_mac is None or client_mac == 'RANDOM':
+            client_mac = self.get_random_mac()
+        if server_mac is None or server_mac == 'RANDOM':
+            server_mac = self.get_random_mac()
+        server_mac = '00:0C:29:BC:72:6F'
+    def get_random_mac(self):
+        choices='1234567890ABCDEF'
+        rval = 'FF:FF:FF:FF:FF:FF'
+        while  rval =='FF:FF:FF:FF:FF:FF' or rval == '00:00:00:00:00:00':
+            rval = ''
+            for x in range(0,6):
+                rval +=random.choice(choices)
+                rval +=random.choice(choices)
+                rval +=':'
+            rval = rval[:-1]
+        return rval
+
 
     #------------------------------------------------------------------#
     def build_traffic(self,header,contents, randomize_Mac):
@@ -89,8 +108,8 @@ class traffic_player:
         opts = [('SAckOK','')]
         #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
         #print("sent 1 I guess")
-        client_IP_Layer = IP(src=self.client, dst=self.server)
-        server_IP_Layer = IP(src=self.server,dst=self.client)
+        client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
+        server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
 
         client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
         send(client_Hello)
@@ -273,7 +292,8 @@ def get_payload(cont):
             payload.extend(curr_cap)
             details = cont[count]
     return payload
-            
+
+           
             
 #currently doesn't support negative numbers in dist/offset
 def payload_helper(cont,count):
@@ -299,25 +319,27 @@ def payload_helper(cont,count):
     #Need to check for banned hex strings.
     inbody=False
     off_opts = 0
-    num_b = len(build)-1
+    num_b = len(build)
     while cont[curr_loc][0] in CONTENT_MODIFIERS and curr_loc < len(cont):
+        
         if 'base64_decode:' == cont[curr_loc][0]:
             the_x64data = cont[curr_loc][1].split(',')
             for variablex64 in the_x64data:
+                
+                
                 if 'offset' in variablex64:
                     off_opts = int(str(variablex64).replace('offset','').replace(' ',''))
                 if 'bytes' in cont[curr_loc][1]:
                     num_b = int(str(variablex64).replace('bytes','').replace(' ',''))
+            
 
-            build = bytearray(build[:off_opts] + base64.encodebytes(build[off_opts:off_opts+num_b]) + build[off_opts+num_b:])
+            build = bytearray(build[:off_opts] + base64.b64encode(build[off_opts:off_opts+num_b]) + build[off_opts+num_b:])
 
         if 'depth:' == cont[curr_loc][0] or 'within:' == cont[curr_loc][0]:
             paysize += int(cont[curr_loc][1])
         if 'isdataat:' == cont[curr_loc][0]:
             isdat = cont[curr_loc][1].split(',')
-
             isdat = int(isdat[0])
-
         if 'offset:' == cont[curr_loc][0] or 'distance:' == cont[curr_loc][0]:
             offset += int(cont[curr_loc][1])
         if 'http_client_body:' == cont[curr_loc][0]:
@@ -339,12 +361,12 @@ def get_content(le_string):
     payload_content = bytearray()
     if content.startswith('\"') and content.endswith('\"'):
         content = content[1:-1]
-    print(content)
+    
     if content.startswith('|') and content.endswith('|'):
         content = content[1:-1]
         
         content = content.split('|')
-        print(type(content))
+        
         for itemz in content:
             if (' ' in itemz or len(itemz) > 1):
                 payload_content.extend( bytearray.fromhex(itemz))
@@ -358,20 +380,23 @@ def get_content(le_string):
 def hex_match(the_match):
     match1 = the_match.group().strip('|')
     content = bytearray.fromhex(match1).decode('latin_1')
-    print(content)
+    
     return content
     
 
-header = {'rule_action': 'alert', 'protocol': 'tcp', 'rule_ip_src': 'any', 'rule_src_p': '110', 'rule_direction': '->', 'rule_ip_dst': 'any', 'rule_dst_p': 'any'}
-content = [['msg:', '"PROTOCOL-POP libcurl MD5 digest buffer overflow attempt"'], ['flow:', 'to_client,established'],
- ['content:', '"+OK"'], ['content:', '"SASL"'], ['distance:', '0'], ['content:', '"DIGEST-MD5"'], ['distance:', '0'],
-  ['content:', '"+"'], ['distance:', '0'], ['base64_decode:', 'relative'], ['base64_data', ''], ['content:', '"realm=|22|"'],
-   ['isdataat:', '124,relative'], ['content:', '!"|22|"'], ['within:', '124'], ['metadata:service', 'pop3'],
-    ['reference:', 'bugtraq,57842'], ['reference:', 'cve,2013-0249'], ['classtype:', 'attempted-user'],
-     ['sid:', '26391'], ['rev:', '1']]
+if __name__ == '__main__':
+    header = {'rule_action': 'alert', 'protocol': 'tcp', 'rule_ip_src': 'any', 'rule_src_p': '110', 'rule_direction': '->', 'rule_ip_dst': 'any', 'rule_dst_p': 'any'}
+    content = [['msg:', '"PROTOCOL-POP libcurl MD5 digest buffer overflow attempt"'], ['flow:', 'to_client,established'],
+    ['content:', '"+OK"'], ['content:', '"SASL"'], ['distance:', '0'], ['content:', '"DIGEST-MD5"'], ['distance:', '0'],
+    ['content:', '"+"'], ['distance:', '0'], ['base64_decode:', 'relative'], ['base64_data', ''], ['content:', '"realm=|22|"'],
+    ['isdataat:', '124,relative'], ['content:', '!"|22|"'], ['within:', '124'], ['metadata:service', 'pop3'],
+        ['reference:', 'bugtraq,57842'], ['reference:', 'cve,2013-0249'], ['classtype:', 'attempted-user'],
+        ['sid:', '26391'], ['rev:', '1']]
 
-ok = traffic_player(header,content,False)
-ok.build_traffic(header,content,False)
-print("Build complete.")
-ok.send_traffic()
-#build_traffic(header, content)
+    ok = traffic_player(header,content,False)
+    ok.build_traffic(header,content,False)
+    print("Build complete.")
+    ok.send_traffic()
+    #build_traffic(header, content)
+
+
