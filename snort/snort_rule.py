@@ -8,9 +8,9 @@ class Snort_Rule():
     IP_RE      = re.compile(r"(!){0,1}(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d|(?:\.\d))(?!\/)")
     IP_CIDR_RE = re.compile(r"(!){0,1}(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
     #Will take the last 5 characters of a digit string if the digit is longer than 5
-    PORT_RE = re.compile(r"(!){0,1}(:){0,1}([1-9]){1}([0-9]){0,4}(?!\d)(:){0,1}(([1-9]){1}([0-9]){0,4}(?!\d)){0,1}")
-    RULE_RE = re.compile(r"(alert|block|drop|log|pass)(.+)(\))")
-    RC_RE = re.compile(r"(\(.?+\))")
+    PORT_RE = re.compile(r'(!){0,1}(:){0,1}([1-9]){1}([0-9]){0,4}(?!\d)(:){0,1}(([1-9]){1}([0-9]){0,4}(?!\d)){0,1}')
+    RULE_RE = re.compile(r'(alert|block|drop|log|pass)(.+)(\))')
+    
 
     def __init__(self,input, config):
         rules = None
@@ -63,7 +63,9 @@ class Snort_Rule():
                         chunk =  chunk + 1    
                     #removing services as a dict addition            
                     #services.append({i:param[chunk:]})
-                    addition = [i,chunk]
+                  
+                    
+                    addition = [i,param[chunk:]]
                     services.append(addition)
                     
                     
@@ -172,3 +174,5 @@ class Snort_Rule():
    
     def build_pcap(self):
         return 0
+if __name__ == '__main__':
+    exit(0)
