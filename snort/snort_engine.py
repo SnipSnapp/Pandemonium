@@ -1,13 +1,13 @@
 import re
 import os
 from .snort_rule import Snort_Rule
-
+from .traffic_player import traffic_player
 class Snort_Engine():
     rule_actions = ['alert','block','drop','log','pass']
     rule_protocols = ['ip','icmp','tcp','udp']
-    IP_RE      = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d|(?:\.\d))")
-    IP_CIDR_RE = re.compile(r"(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}(?!\d|(?:\.\d))")
-    RULE_MATCH = r"(alert|log|pass|drop|reject|sdrop){1}(.+)(->|<>)(.+)(\))"
+    IP_RE      = re.compile(r'(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d|(?:\.\d))')
+    IP_CIDR_RE = re.compile(r'(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}(?!\d|(?:\.\d))')
+    RULE_MATCH = r'(alert|log|pass|drop|reject|sdrop){1}(.+)(->|<>)(.+)(\))'
 
     def __init__(self, rule_folder:str, config:str):
         self.rules = {}
@@ -54,10 +54,13 @@ class Snort_Engine():
     def play_pcap(self, rule):
         
         rule_definition = self.rules['bugtraq,57842'].rules
+        print(self.rules['bugtraq,57842'].rules[0])
+        print("rule iz")
+        print(rule_definition[1])
         print('\n')
-        print(rule_definition[0])
-        print('\n')
-        print(rule_definition[1][0][0])
+
+        traffic_player(self.rules['bugtraq,57842'].rules[0],self.rules['bugtraq,57842'].rules[1],None,None).send_traffic()
+        
         
         exit(0)
 
