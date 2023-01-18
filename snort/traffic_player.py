@@ -87,7 +87,7 @@ class traffic_player:
         #rule header build    
         self.traffic_protocol = header['protocol']
         print(f"Protocol:{self.traffic_protocol}")
-        self.client = str(self.get_ip_address(header['rule_ip_src']))#"192.168.68.60"#
+        self.client = "192.168.68.60"#str(self.get_ip_address(header['rule_ip_src']))
         self.client_port = self.get_port(header['rule_src_p'])
         self.server = "192.168.68.61"#str(get_ip_address(header['rule_ip_dst']))
         self.server_port = self.get_port(header['rule_dst_p'])
@@ -241,6 +241,13 @@ class traffic_player:
             my_port = randrange(1,65535)
             while my_port in BLACKLIST_PORTS:
                 my_port = randrange(1,65535)
+        #SEEE https://www.sbarjatiya.com/notes_wiki/index.php/Configuring_snort_rules#Specifying_source_and_destination_ports
+        elif '[' in str(port):
+            port_def = port.strip('[').strip(']')
+            port_def = port_def.split(',')
+            if port_def[0].contains[':']:
+                port_def[0] = 
+                
         elif str(port).startswith(':'):
             my_port = randrange(1,int(port[1:]))
             while my_port in BLACKLIST_PORTS:
@@ -324,8 +331,6 @@ class traffic_player:
         else:
             return KNOWN_SERVICES
 
-
-
     def get_payload(self,cont):
         payload = bytearray()
         #Find where we have content, if we do....
@@ -353,25 +358,27 @@ class traffic_player:
                     x64_additions.append(curr_cap)
         #print(x64_additions)
         true_addition = bytearray()
+        
         for x in x64_additions:
-            true_addition +=str(x).encode('utf-8')
-       # print(true_addition)
+            addme = x
+            if addme.endswith('=='):
+                addme = addme[:-2]
+            true_addition +=str(addme).encode('utf-8')
+        print(true_addition)
         true_addition= base64.b64encode(true_addition)
         #print(true_addition)
         payload += true_addition[:-1] + self.get_valid_random_bytes(self.isdataat)
         return payload
 
-
     def get_valid_random_bytes(self,size):
         global x64_RANDOM_CHAR_LIST
         if self.sticky_x64_decode or self.base64_encode_next_payload:
-            r_string = ''.join(random.choice(x64_RANDOM_CHAR_LIST) for i in range(size))
+            r_string = ''.join('9'for i in range(size))
             r_string = r_string
             
             return base64.b64encode(r_string.encode('utf-8'))
         else:
-            return randbytes(size)
-         
+            return randbytes(size)     
 #currently doesn't support negative numbers in dist/offset
     def payload_helper(self,cont,count):
         not_flag = False
@@ -505,7 +512,7 @@ class traffic_player:
 
 if __name__ == '__main__':
     header = {'rule_action': 'alert', 'protocol': 'tcp', 'rule_ip_src': 'any', 'rule_src_p': '110', 'rule_direction': '->', 'rule_ip_dst': 'any', 'rule_dst_p': 'any'}
-    content = [['msg:', '"PROTOCOL-POP libcurl MD5 digest buffer overflow attempt"'], ['flow:', 'to_client,established'], ['content:', '"+OK"'], ['content:', '"SASL"'], ['distance:', '0'], ['content:', '"DIGEST-MD5"'], ['distance:', '0'], ['content:', '"+"'], ['distance:', '0'], ['base64_decode:', 'relative'], ['base64_data', ''], ['content:', '"realm=|22|"'], ['isdataat:', '124,relative'], ['content:', '!"|22|"'], ['within:', '124'], ['metadata:service', 'pop3'], ['reference:', 'bugtraq,57842'], ['reference:', 'cve,2013-0249'], ['classtype:', 'attempted-user'], ['sid:', '26391'], ['rev:', '1']]   # print(rstr.xeger('^PASS\\s+[^\\n]*?%'))
+    content = [['msg:', '"PROTOCOL-POP libcurl MD5 digest buffer overflow attempt"'], ['flow:', 'to_client,established'], ['content:', '"+OK"'], ['content:', '"SASL"'], ['distance:', '0'], ['content:', '"DIGEST-MD5"'], ['distance:', '0'], ['content:', '"+"'], ['distance:', '0'], ['base64_decode:', 'relative'], ['base64_data', ''], ['content:', '"realm=|22|"'], ['isdataat:', '1240,relative'], ['content:', '!"|22|"'], ['within:', '124'], ['metadata:service', 'pop3'], ['reference:', 'bugtraq,57842'], ['reference:', 'cve,2013-0249'], ['classtype:', 'attempted-user'], ['sid:', '26391'], ['rev:', '1']]   # print(rstr.xeger('^PASS\\s+[^\\n]*?%'))
     
     ok = traffic_player(header,content,None, None)
     #ok.build_traffic(header,content)
@@ -513,10 +520,12 @@ if __name__ == '__main__':
     #ok.payload=bytearray('+OKSASLDIGEST-MD5+cmVhbG09Ig==K\x83\x15\x86\x04\x06\xe1\xb6\r8\xbc\xbb\xc22M\xa8\x92L\nB\xf1\xf78\xaa\x86\x16\xadEO\x92\x19\xbb\x9b\x9c4\x83\xa3\x8b\x1eINA\xf5\xbeN\xa1\xa5\x84\t|\xd5\xf6:<B\xc2#\xa3\x05\r\tj\xf6\xa2\xbc\xce*\xd1Iw\x9a\xc0\xff\xfe\x9d\x1db\x1e\xfa\xb0m\xc6\x89\xc6\x93W\\\x12[\xd5\xf6\xed\xad\xb9e\x04\x11\xe5b\xc5\xf4*\x03\xe7\xdf}\xc9}\x98\xb6\x12I\x1ek\x1aO\xd8\xebg\xe1\x8e\x13\xc7\x81thisisthestoryofagirlwhocriedariverthatdrownedthewholeworld'.encode('latin_1'))
    # print(len(ok.payload))
     #print(len('+OKSASLDIGEST-MD5+cmVhbG09Ig=='))
-    #print(ok.payload[154])
+    print(ok.payload[154])
     #while True:
     for x in range(1):
         print('Sending')
         ok.send_traffic()
         sleep(5)
     #build_traffic(header, content)
+
+
