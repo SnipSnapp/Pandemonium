@@ -2,25 +2,25 @@
 
 ## Currently in Development.
 ## Setup/Dependencies
-  Supported Operating Systems: Windows, Linux (Ubuntu Tested, unknown for other Linux flavors)
-  Ensure Python3 is installed with the following modules
-    --scapy, random, ipaddress, time, string, subprocess, re, base64, os, argparse
-  Ensure Perl is installed with the following modules:
-    --String::Random , File::Slurper
+  Supported Operating Systems: Windows, Linux (Ubuntu Tested, unknown for other Linux flavors)  
+  Ensure Python3 is installed with the following modules  
+    --scapy, random, ipaddress, time, string, subprocess, re, base64, os, argparse  
+  Ensure Perl is installed with the following modules:  
+    --String::Random , File::Slurper  
 ## Usage
   Place your snort.conf file within the "config" folder. It MUST be named "Snort_config.txt".  I have a default one provided in there. Its text must be replaced if yours is different. Next place any rules you want to test in a file inside of the "Rules" folder. It will NOT care if a rule is commented out or not, all rules are treated equally. Then configure any IPs/Ports/MACs addresses that you DO NOT want to be generating traffic for. Next, navigate to the folder of your 'main.py' file, and run it as-is.  Different options may/may not work. See output on use for more details. 
 ## Supported
 ### Snort Rule Headers
-  --flow
-  --IP Src/Dst
-  --TCP/UDP
-  --Ports
-  --Direction
+  --flow  
+  --IP Src/Dst  
+  --TCP/UDP  
+  --Ports  
+  --Direction  
 ### Currently Supported Snort Rule Options for Payloads
-  --Depth
-  --offset
-  --distance
-  --within
+  --Depth  
+  --offset  
+  --distance  
+  --within  
   --isdataat
   --pcre
   --http_cookie
