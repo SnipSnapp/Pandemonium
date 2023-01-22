@@ -21,20 +21,20 @@
   --offset  
   --distance  
   --within  
-  --isdataat
-  --pcre
-  --http_cookie
-  --http_header
-  --http_uri
-  --http_raw_cookie
-  --http_raw_uri
-  --http_stat_code
-  --uricontent
-  --urilen
+  --isdataat  
+  --pcre  
+  --http_cookie  
+  --http_header  
+  --http_uri  
+  --http_raw_cookie  
+  --http_raw_uri  
+  --http_stat_code  
+  --uricontent  
+  --urilen  
 ### Currently Supported Services/Applications
-  --Generic (Unknown apps, these default to pop3)
-  --pop3
-  --http
+  --Generic (Unknown apps, these default to pop3)  
+  --pop3  
+  --http  
 ### Supported L2/L3 modifications
 #### blacklist IPs
   Add blacklisted IP addresses, or IP address ranges to the blacklist_ips.txt file and it will NOT allow IP randomization to use those IPs
@@ -46,18 +46,18 @@
   Currently, the tool takes a snort configuration file which forces the tool to follow a snort config for port and ip address selection.
 ## Planned:
 ### Planned L2/L3 Modification
-  --Designate MACs on command-line
-  --Designate IPs on command-line
-  --Designate Src/Dst port on command-line
+  --Designate MACs on command-line  
+  --Designate IPs on command-line  
+  --Designate Src/Dst port on command-line  
   
 ### Currently Planned Services
-  --ftp
-  --Any additional snort specific service identifiers I find while figurin out rulez.
-  --All scapy service options listed in scapy (Long-term)
+  --ftp  
+  --Any additional snort specific service identifiers I find while figurin out rulez.  
+  --All scapy service options listed in scapy (Long-term)  
   
 ### Planned additional signature building
-  --Yara
-  --Command-line processing
-  --PCAP building
-  --Suricata (rules are basically snort, but there's a few small processing differences)
+  --Yara  
+  --Command-line processing  
+  --PCAP building  
+  --Suricata (rules are basically snort, but there's a few small processing differences)  
 
