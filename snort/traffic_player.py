@@ -3,12 +3,13 @@ from random import randrange
 from random import randbytes
 from ipaddress import IPv4Network, IPv4Address
 from time import sleep
-import rstr
+import string
+import subprocess
 #Doesn't quite need to be a class, but I don't feel comfortable not leaving as a function.
 import re
 import base64
 IP_CIDR_RE = re.compile(r'(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))')
-HEX_IDENTIFIER = re.compile(r'((\|)((\d\d)( ){0,}){1,}(\|))')
+HEX_IDENTIFIER = re.compile(r'\|([0-9a-fA-F]{2} {0,1}){1,}\|')
 BLACKLIST_IPS = []
 BLACKLIST_PORTS = []
 KNOWN_SERVICES= ['pop3']
@@ -16,6 +17,7 @@ CONTENT_MODIFIERS = ['depth:','offset:','distance:','within:','http_header:','is
 SUPPORTED_NEXT = ['base64_decode:','base64_data']
 TEMP_BAD = ''
 BAD_HEXSTRINGS = []
+BLACKLIST_MACS = []
 x64_RANDOM_CHAR_LIST='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890+/'
 #PCRE IS BASIC NEEDS WORK
 #NEED TO REFORMAT DATA FOR ISDATAAT
@@ -32,6 +34,11 @@ with open('Snort/config/blacklist_ports.txt','r') as f:
     f.close
 for i,ele in enumerate(BLACKLIST_PORTS):
     BLACKLIST_PORTS[i] = int(ele.strip())
+with open('Snort/config/blacklist_macs.txt', 'r') as f:
+    BLACKLIST_MACS = f.readlines()
+    f.close
+for i,ele in enumerate(BLACKLIST_MACS):
+    BLACKLIST_MACS[i] = ele.strip()
 
 class traffic_player:
 
@@ -69,10 +76,10 @@ class traffic_player:
         
 
     def get_random_mac(self):
+        global BLACKLIST_MACS
         choices='1234567890ABCDEF'
         rval = 'FF:FF:FF:FF:FF:FF'
-        bad_macs = ['FF:FF:FF:FF:FF:FF','00:00:00:00:00:00','09:00:2B:00:00:04','09:00:2B:00:00:05']
-        while  rval in bad_macs :
+        while  rval in BLACKLIST_MACS :
             rval = ''
             for x in range(0,6):
                 rval +=random.choice(choices)
@@ -86,8 +93,8 @@ class traffic_player:
     def build_traffic(self,header,contents):
         #rule header build    
         self.traffic_protocol = header['protocol']
-        print(f"Protocol:{self.traffic_protocol}")
-        self.client = "192.168.68.60"#str(self.get_ip_address(header['rule_ip_src']))
+        
+        self.client = "192.168.68.60"#str(self.get_ip_address(header['rule_ip_src']))#
         self.client_port = self.get_port(header['rule_src_p'])
         self.server = "192.168.68.61"#str(get_ip_address(header['rule_ip_dst']))
         self.server_port = self.get_port(header['rule_dst_p'])
@@ -96,21 +103,23 @@ class traffic_player:
         if self.server_mac is None or self.server_mac == 'RANDOM':
             self.server_mac = self.get_random_mac()
         self.server_mac = '00:0C:29:BC:72:6F'
-        print(f"{self.client_mac} AT {self.client}:{self.client_port} -> {self.server_mac} AT {self.server}:{self.server_port}")
+       
         
         #Rule contents build
         self.payload_flow = self.get_flow(contents)
-        print(f"Flow:{self.payload_flow}")
         if self.payload_flow[0] =="from_server":
             placehold = self.client_port
             self.client_port = self.server_port
             self.server_port = placehold
 
         self.payload_service = self.get_service(contents)
-        print(f"Service:{self.payload_service}")
 
         
         self.payload = self.get_payload(contents)
+        print(f"Service:{self.payload_service}")
+        print(f"Protocol:{self.traffic_protocol}")
+        print(f"{self.client_mac} AT {self.client}:{self.client_port} -> {self.server_mac} AT {self.server}:{self.server_port}")
+        print(f"Flow:{self.payload_flow}")
         print("|--Payload--|")
         print(self.payload)
         print('|-----------|\n')
@@ -164,14 +173,25 @@ class traffic_player:
         serv_fin_ack = server_IP_Layer/TCP(sport=self.server_port, dport=self.client_port, flags='A', seq=client_FA.ack, ack=client_FA.seq +1)
         sendp(serv_fin_ack, verbose=True)
         #send(serv_signoff)
-          
+    def send_udp_convo(self):
+        opts = [('SAckOK','')]
+        #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
+        #print("sent 1 I guess")
+        client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
+        server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        
+        for i in range(10):
+            sendp(client_IP_Layer/UDP(sport = self.client_port, dport=self.server_port)/self.payload)
+            sendp(server_IP_Layer/UDP(sport = self.server_port, dport=self.client_port)/self.payload)
+
     def send_traffic(self):
         #print(self.payload_flow[1])
-        if self.payload_flow[1] == 'established':
-            if self.traffic_protocol == 'tcp':
-                self.send_full_convo()
-            else:
-                pass
+        if self.traffic_protocol == 'tcp':
+            self.send_full_convo()
+        elif self.traffic_protocol =='udp':
+            self.send_udp_convo()
+        
+                
 
 #Potential for infinite loops below function.  Future: Get rid of by checking the src. IP ranges and only finding IP addresses for randomization outside.
 #Also Need to include RFC 1918 addresses for random IP addresses for local IPs for hosts.
@@ -237,19 +257,26 @@ class traffic_player:
     def get_port(self,port):
         my_port = 0
         
-        if str(port) == 'any':
+        if port is None or str(port) == 'any':
             my_port = randrange(1,65535)
             while my_port in BLACKLIST_PORTS:
                 my_port = randrange(1,65535)
         #SEEE https://www.sbarjatiya.com/notes_wiki/index.php/Configuring_snort_rules#Specifying_source_and_destination_ports
         elif '[' in str(port):
+            print(port)
             port_def = port.strip('[').strip(']')
             port_def = port_def.split(',')
-            if port_def[0].contains[':']:
-                port_def[0] = 
+            start_p = self.get_port(port_def[0])
+            end_p = start_p
+            if len(port_def) > 1:
+                end_p = self.get_port(port_def[1])
+            port_rng = [start_p, end_p]
+            my_port = random.choice(port_rng)
+            return int(my_port)
                 
         elif str(port).startswith(':'):
             my_port = randrange(1,int(port[1:]))
+            
             while my_port in BLACKLIST_PORTS:
                 my_port = randrange(1,int(port[1:]))
         elif str(port).endswith(':'):
@@ -373,7 +400,7 @@ class traffic_player:
     def get_valid_random_bytes(self,size):
         global x64_RANDOM_CHAR_LIST
         if self.sticky_x64_decode or self.base64_encode_next_payload:
-            r_string = ''.join('9'for i in range(size))
+            r_string = ''.join(random.choice(string.ascii_letters)for i in range(size))
             r_string = r_string
             
             return base64.b64encode(r_string.encode('utf-8'))
@@ -442,6 +469,7 @@ class traffic_player:
             if 'offset:' == cont[curr_loc][0] or 'distance:' == cont[curr_loc][0]:
                 offset += int(cont[curr_loc][1])
             if 'http_client_body:' == cont[curr_loc][0]:
+                exit(0)
                 inbody=True
             curr_loc +=1
 
@@ -465,41 +493,77 @@ class traffic_player:
         return build,curr_loc
 
     def get_content(self,le_string):
+        print(le_string)
+        
         content = le_string
         payload_content = bytearray()
         if content.startswith('\"') and content.endswith('\"'):
             content = content[1:-1]
-        
-        if content.startswith('|') and content.endswith('|'):
-            content = content[1:-1]
-            
-            content = content.split('|')
-            
-            for itemz in content:
-                if (' ' in str(itemz) or( len(itemz) > 1 and len(itemz) < 3)):
-                    try:
-                        payload_content.extend( bytearray.fromhex(itemz))
-                    except ValueError:
-                        payload_content.extend(itemz.encode('latin_1'))
-                        pass
-                elif len(itemz) > 0 :
-                    payload_content.extend(itemz.encode('latin_1'))
-        else:
-            content = re.sub(HEX_IDENTIFIER,self.hex_match,content)
-            payload_content.extend(content.encode('latin_1'))
+#I don't think this is needed. We have the 'sub'        
+#        if '|' in content and not '\|' in content:
+#            
+#            content = content.split('|')
+#            print(len(content))
+#            print(content)
+#            exit(0)
+#            for itemz in content:
+#                print(itemz)
+#                if (' ' in str(itemz) or( len(itemz) > 1 and len(itemz) < 3)):
+#                    try:
+#                        
+#                        payload_content.extend( bytearray.fromhex(itemz))
+#                    except ValueError:
+#                        payload_content.extend(itemz.encode('latin_1'))
+#                        pass
+#                elif len(itemz) > 0 :
+#                    payload_content.extend(itemz.encode('latin_1'))
+#        else:
+        content = re.sub(HEX_IDENTIFIER,self.hex_match,content)
+        payload_content.extend(content.encode('latin_1'))
         return payload_content
 
     def reverse_pcre(self,the_regex):
-        actual_regex = the_regex.split('/')
-        #print("Actual Regex:")
-        #print(actual_regex)
-        try:
-            r_string = rstr.xeger(actual_regex[1])
-        except:
-            #print(actual_regex)
-            r_string = actual_regex[1]
-            pass
-        return bytearray(r_string.encode('latin_1'))
+
+        print(os.getcwd())
+        if the_regex.startswith('\"') and the_regex.endswith('\"'):
+            the_regex = the_regex[1:-1]
+        if the_regex.startswith('/^'):
+            the_regex = the_regex[2:]
+        re_opts = the_regex[the_regex.rfind('/'):]
+        the_regex = the_regex[:the_regex.rfind('/')]
+        #TODO IMPLEMENT SNORT OPTIONS.
+        #print(re_opts)
+
+        the_regex = self.rstring_arrbuilder(the_regex)
+        with open('./Snort/pcre_gen.txt','w') as f:
+            f.write(the_regex)
+            f.close()
+        result=subprocess.run([f'perl','.\\Snort\\reverse_pcre.pl', the_regex], shell=True, stdout=subprocess.PIPE)
+        with open('./Snort/pcre_gen.txt','r') as f:
+            the_regex = f.read()
+            f.close()
+
+        return bytearray(the_regex.encode('latin_1'))
+    def rstring_arrbuilder(self, the_regex):
+        if '\s' in the_regex:
+            the_regex = the_regex.replace('\\s',' ')
+        matching_unsupported_negate = re.findall('\[\^.+\]',the_regex)
+        print(matching_unsupported_negate)
+        my_re = the_regex
+
+        for x,negated in enumerate(matching_unsupported_negate):
+            supported_characters = string.ascii_letters + string.digits
+            replacement_string = negated[2:-1]
+            if '\s' in negated:
+                supported_characters = supported_characters.replace('\t','').replace('\n','').replace('\r','').replace('\x0b','').replace('\x0c','')
+            if '\\n' in negated:
+                supported_characters = supported_characters.replace('\\n','')
+            for i in replacement_string:
+                if i in supported_characters:
+                    supported_characters = supported_characters.replace(i,'')
+            my_re = my_re.replace(matching_unsupported_negate[x],'['+supported_characters.replace('[','\[').replace(']','\]').replace('+','\+').replace('-','\+').replace('>','').replace('<','').replace('\'','').replace('{','').replace('^','') +']') 
+
+        return my_re
 
     def hex_match(self,the_match):
         match1 = the_match.group().strip('|')
@@ -512,8 +576,7 @@ class traffic_player:
 
 if __name__ == '__main__':
     header = {'rule_action': 'alert', 'protocol': 'tcp', 'rule_ip_src': 'any', 'rule_src_p': '110', 'rule_direction': '->', 'rule_ip_dst': 'any', 'rule_dst_p': 'any'}
-    content = [['msg:', '"PROTOCOL-POP libcurl MD5 digest buffer overflow attempt"'], ['flow:', 'to_client,established'], ['content:', '"+OK"'], ['content:', '"SASL"'], ['distance:', '0'], ['content:', '"DIGEST-MD5"'], ['distance:', '0'], ['content:', '"+"'], ['distance:', '0'], ['base64_decode:', 'relative'], ['base64_data', ''], ['content:', '"realm=|22|"'], ['isdataat:', '1240,relative'], ['content:', '!"|22|"'], ['within:', '124'], ['metadata:service', 'pop3'], ['reference:', 'bugtraq,57842'], ['reference:', 'cve,2013-0249'], ['classtype:', 'attempted-user'], ['sid:', '26391'], ['rev:', '1']]   # print(rstr.xeger('^PASS\\s+[^\\n]*?%'))
-    
+    content = [['msg:', '"PROTOCOL-POP APOP USER overflow attempt"'], ['flow:', 'to_server,established'], ['content:', '"APOP"'], ['isdataat:', '256,relative'], ['pcre:', '"/^APOP\s+USER\s[^\\n]{256}/smi"'], ['metadata:', 'ruleset community, service pop3'], ['reference:', 'bugtraq,9794'], ['reference:', 'cve,2004-2375'], ['classtype:', 'attempted-admin'], ['sid:', '2409'], ['rev:', '11']]    
     ok = traffic_player(header,content,None, None)
     #ok.build_traffic(header,content)
     print("Build complete.")
