@@ -1,7 +1,63 @@
 # NetSignature_Spammer
 
-## Currently in Development. No features supported yet.
+## Currently in Development.
+## Setup/Dependencies
+  Supported Operating Systems: Windows, Linux (Ubuntu Tested, unknown for other Linux flavors)
+  Ensure Python3 is installed with the following modules
+    --scapy, random, ipaddress, time, string, subprocess, re, base64, os, argparse
+  Ensure Perl is installed with the following modules:
+    --String::Random , File::Slurper
+## Usage
+  Place your snort.conf file within the "config" folder. It MUST be named "Snort_config.txt".  I have a default one provided in there. Its text must be replaced if yours is different. Next place any rules you want to test in a file inside of the "Rules" folder. It will NOT care if a rule is commented out or not, all rules are treated equally. Then configure any IPs/Ports/MACs addresses that you DO NOT want to be generating traffic for. Next, navigate to the folder of your 'main.py' file, and run it as-is.  Different options may/may not work. See output on use for more details. 
+## Supported
+### Snort Rule Headers
+  --flow
+  --IP Src/Dst
+  --TCP/UDP
+  --Ports
+  --Direction
+### Currently Supported Snort Rule Options for Payloads
+  --Depth
+  --offset
+  --distance
+  --within
+  --isdataat
+  --pcre
+  --http_cookie
+  --http_header
+  --http_uri
+  --http_raw_cookie
+  --http_raw_uri
+  --http_stat_code
+  --uricontent
+  --urilen
+### Currently Supported Services/Applications
+  --Generic (Unknown apps, these default to pop3)
+  --pop3
+  --http
+### Supported L2/L3 modifications
+#### blacklist IPs
+  Add blacklisted IP addresses, or IP address ranges to the blacklist_ips.txt file and it will NOT allow IP randomization to use those IPs
+#### Blacklist MAC addresses
+  Add blacklisted MAC addresses to the blacklist_macs.txt file and it will NOT allow MAC address randomization to use those MACs
+#### Blacklist ports
+  Add blacklisted ports to the blacklist_ports.txt file and it will not allow Port randomization to use those ports.
+#### Snort Configuration for MACs/IPs/Ports
+  Currently, the tool takes a snort configuration file which forces the tool to follow a snort config for port and ip address selection.
+## Planned:
+### Planned L2/L3 Modification
+  --Designate MACs on command-line
+  --Designate IPs on command-line
+  --Designate Src/Dst port on command-line
+  
+### Currently Planned Services
+  --ftp
+  --Any additional snort specific service identifiers I find while figurin out rulez.
+  --All scapy service options listed in scapy (Long-term)
+  
+### Planned additional signature building
+  --Yara
+  --Command-line processing
+  --PCAP building
+  --Suricata (rules are basically snort, but there's a few small processing differences)
 
-### Planned Features:
-
-Replay snort rules over the wire.  No more hunting for malware to see if the detection you built works! Just run the rule, set your destination & Yolo your way into actually testing your IDS.
