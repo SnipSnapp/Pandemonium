@@ -12,13 +12,17 @@ IP_CIDR_RE = re.compile(r'(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|
 HEX_IDENTIFIER = re.compile(r'\|([0-9a-fA-F]{2} {0,1}){1,}\|')
 BLACKLIST_IPS = []
 BLACKLIST_PORTS = []
-KNOWN_SERVICES= ['pop3']
-CONTENT_MODIFIERS = ['depth:','offset:','distance:','within:','http_header:','isdataat:','pcre:']
+KNOWN_SERVICES= ['pop3','http']
+CONTENT_MODIFIERS = ['depth:','offset:','distance:','within:','isdataat:','pcre:']
 SUPPORTED_NEXT = ['base64_decode:','base64_data']
 TEMP_BAD = ''
 BAD_HEXSTRINGS = []
 BLACKLIST_MACS = []
-x64_RANDOM_CHAR_LIST='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890+/'
+#these are separate because the list is different, and corresponds to http
+HTTP_OPTS = ['http_cookie','http_header','http_uri','http_raw_cookie','http_raw_header','http_raw_uri','http_stat_code','uricontent','urilen','http_method']
+#yes, technically it should have /,= but these will make snort stop processing, and an '==' is added to the end.
+#yes it should technically have '+' but this causes a payload length issue because it makes x64 decode to unicode and not ascii which makes detections a little inconsistent.
+x64_RANDOM_CHAR_LIST='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890+'
 #PCRE IS BASIC NEEDS WORK
 #NEED TO REFORMAT DATA FOR ISDATAAT
 
@@ -41,8 +45,6 @@ for i,ele in enumerate(BLACKLIST_MACS):
     BLACKLIST_MACS[i] = ele.strip()
 
 class traffic_player:
-
-
     with open('Snort/config/blacklist_ips.txt', 'r') as f:
         BLACKLIST_IPS = f.readlines()
         f.close
@@ -72,6 +74,7 @@ class traffic_player:
         self.base64_encode_num_bytes = 0
         self.isdataat = 0
         self.sticky_x64_decode = False
+        self.http_modifiers= {}
         self.build_traffic(header,contents)
         
 
@@ -113,18 +116,20 @@ class traffic_player:
             self.server_port = placehold
 
         self.payload_service = self.get_service(contents)
-
+        #REALLY don't need this.  Instead need to modify the get_payload & Payload_helper functions to add to our dictionary of HTTP opts.
+        print(len(self.http_modifiers))
         
         self.payload = self.get_payload(contents)
         print(f"Service:{self.payload_service}")
         print(f"Protocol:{self.traffic_protocol}")
         print(f"{self.client_mac} AT {self.client}:{self.client_port} -> {self.server_mac} AT {self.server}:{self.server_port}")
+        
         print(f"Flow:{self.payload_flow}")
         print("|--Payload--|")
         print(self.payload)
+        
         print('|-----------|\n')
-       
-
+        
 
     def send_full_convo(self):
         #print("Sending")
@@ -183,16 +188,20 @@ class traffic_player:
         for i in range(10):
             sendp(client_IP_Layer/UDP(sport = self.client_port, dport=self.server_port)/self.payload)
             sendp(server_IP_Layer/UDP(sport = self.server_port, dport=self.client_port)/self.payload)
-
+    def send_full_http(self):
+        print(self.http_modifiers)
+        
+        exit(0)
     def send_traffic(self):
         #print(self.payload_flow[1])
         if self.traffic_protocol == 'tcp':
-            self.send_full_convo()
+            if self.payload_service in 'http' or len(self.http_modifiers) !=0:
+                self.send_full_http()
+            else:
+                self.send_full_convo()
         elif self.traffic_protocol =='udp':
             self.send_udp_convo()
         
-                
-
 #Potential for infinite loops below function.  Future: Get rid of by checking the src. IP ranges and only finding IP addresses for randomization outside.
 #Also Need to include RFC 1918 addresses for random IP addresses for local IPs for hosts.
     def get_ip_address(self,hostname):
@@ -256,6 +265,11 @@ class traffic_player:
 
     def get_port(self,port):
         my_port = 0
+        
+        if type(port) is list:
+            for cnt,port_obj in enumerate(port):
+                port[cnt] = self.get_port(port_obj)
+            return random.choice(port)
         
         if port is None or str(port) == 'any':
             my_port = randrange(1,65535)
@@ -351,41 +365,69 @@ class traffic_player:
         svc = None
         for x in cont:
             
-            if x[0] == 'metadata:service':
-                svc = x[1]
-        if svc in KNOWN_SERVICES :
+            if x[0] == 'metadata:service' or 'service' in x[0] or 'metadata:' in x[0]:
+                if 'metadata' in x[0]:
+                    meta = x[1].split(',')
+                    for y in meta:
+                        if 'service' in y:
+                            k = y.split(' ')
+                            print(k)
+                            if k[0] =='':
+                                svc=k[2]
+                            else:
+                                svc = k[1]
+                            break
+                else:
+                    svc = x[1]
+            
+        print(svc)
+        if svc in KNOWN_SERVICES  :
             return svc
         else:
-            return KNOWN_SERVICES
+            return "general"#KNOWN_SERVICES
 
     def get_payload(self,cont):
         payload = bytearray()
         #Find where we have content, if we do....
         x64_additions = []
+        http_opt = None
         for count,details in enumerate(cont):
             if details[0] in SUPPORTED_NEXT:
                 #print("My details are:")
                 #print(details[1])
                 #print(details)
                 self.set_next_content_opts(details)
-            elif details[0] == 'content:':
+            elif details[0] == 'content:' or details[0] == 'pcre:':
                     #need helper option here, to append to string, we don't need a flag, We need to skip ahead in the enumeration until we reach what it is we seek. This needs to be done in an array.    
                 #print(details)
+                
                 if not self.base64_encode_next_payload and not self.sticky_x64_decode:
-                    curr_cap,count=self.payload_helper(cont,count)
-                    payload.extend(curr_cap)
+                    curr_cap,count,http_opt=self.payload_helper(cont,count)
+                    print(curr_cap,count,http_opt)
+                    if http_opt is None and curr_cap is not None:
+                        payload.extend(curr_cap)
+                    elif curr_cap is not None:
+                        self.http_modifiers.update({http_opt:bytearray(curr_cap)})
                     details = cont[count]
                 else:
                     #print("DOING x64")
                     #print(details)
-                    curr_cap,count=self.payload_helper(cont,count)
+
+                    curr_cap,count,http_opt=self.payload_helper(cont,count)
                     curr_cap = base64.b64decode(curr_cap)
                     #print(curr_cap)
-                    curr_cap = curr_cap.decode('utf-8')
-                    x64_additions.append(curr_cap)
+                    #I know this is really weird, but I did something I can't remember, and now this is the how we get x64 of the correct length. I know, super dumb, but it works? somehow?
+                    #I'll fix it later, but this really is something I don't want to chase at the moment. It wasn't fun to figure out, granted I was playing overwatch & drinkin w/ some friends while coding it.
+                    #After-all this is just a fun project that I have been doing.
+                    if curr_cap is not None:
+                        curr_cap = curr_cap.decode('utf-8')
+                    if http_opt is not None:
+                        self.http_modifiers.update({http_opt:curr_cap})
+                    else:
+                        x64_additions.append(curr_cap)
         #print(x64_additions)
+        #I know I can do this in a better/faster way, but at the time this helped me troubleshoot.
         true_addition = bytearray()
-        
         for x in x64_additions:
             addme = x
             if addme.endswith('=='):
@@ -400,7 +442,7 @@ class traffic_player:
     def get_valid_random_bytes(self,size):
         global x64_RANDOM_CHAR_LIST
         if self.sticky_x64_decode or self.base64_encode_next_payload:
-            r_string = ''.join(random.choice(string.ascii_letters)for i in range(size))
+            r_string = ''.join(random.choice(string.ascii_letters+string.digits)for i in range(size))
             r_string = r_string
             
             return base64.b64encode(r_string.encode('utf-8'))
@@ -409,7 +451,13 @@ class traffic_player:
 #currently doesn't support negative numbers in dist/offset
     def payload_helper(self,cont,count):
         not_flag = False
-
+        print(f'{cont[count][0]} \t\t{cont[count][1]}')
+        print(self.http_modifiers)
+        if 'pcre' in cont[count][0] :
+            print("WE DID PCRE EXITING")
+            print(cont[count][1])
+            return self.reverse_pcre(cont[count][1]),count+1,None
+            
         if cont[count][1].startswith('!'):
             cont[count][1] = cont[count][1][1:]
             not_flag=True
@@ -433,8 +481,7 @@ class traffic_player:
         within = 0
         isdat =0
         #Need to check for banned hex strings.
-        inbody=False
-        off_opts = 0
+        http_option = None
         if self.base64_encode_next_payload or self.sticky_x64_decode:
             #print("DECODING DATA")
             if self.base64_encode_num_bytes == 0:
@@ -447,17 +494,21 @@ class traffic_player:
             self.base64_encode_next_payload=False
 
             #print(build.decode('latin_1'))
-        while curr_loc < len(cont) and cont[curr_loc][0] in CONTENT_MODIFIERS :
+        while curr_loc < len(cont) and (cont[curr_loc][0] in CONTENT_MODIFIERS or cont[curr_loc][0] in HTTP_OPTS) :
+            print(f'{cont[curr_loc][0]} \t\t{cont[curr_loc][1]}')
             if 'depth:' == cont[curr_loc][0]:
                 paysize += int(cont[curr_loc][1])
-            if 'within:' in cont[curr_loc][0]:
+            elif 'within:' in cont[curr_loc][0]:
                 within=  int(cont[curr_loc][1])
                 #print(f'within: {within}')
-            if 'pcre:' in cont[curr_loc][0]:
-                build = self.reverse_pcre(cont[curr_loc][1])
+            elif 'pcre:' in cont[curr_loc][0]:
+                if build.decode('utf-8') in self.reverse_pcre(cont[curr_loc][1]).decode('utf-8'):
+                    build = self.reverse_pcre(cont[curr_loc][1])
+                else:
+                    break
                 #print(build)
                 
-            if 'isdataat:' == cont[curr_loc][0]:
+            elif 'isdataat:' == cont[curr_loc][0]:
                 if dofill== False:
                     self.isdataat = cont[curr_loc][1].split(',')
                     
@@ -466,11 +517,16 @@ class traffic_player:
                     isdat = cont[curr_loc][1].split(',')
                     isdat = int(isdat[0])
 
-            if 'offset:' == cont[curr_loc][0] or 'distance:' == cont[curr_loc][0]:
+            elif 'offset:' == cont[curr_loc][0] or 'distance:' == cont[curr_loc][0]:
                 offset += int(cont[curr_loc][1])
-            if 'http_client_body:' == cont[curr_loc][0]:
-                exit(0)
-                inbody=True
+            #THIS IS A BAD WAY OF DOING THIS
+
+            else:
+                for cnt,http_opt in enumerate(HTTP_OPTS):
+                    print("THIS WAS HIT, WE KNOW THERE IS AN HTTP OPT HERE.")
+                    if http_opt == cont[curr_loc][0]:
+                        http_option = cont[curr_loc][0]
+                break
             curr_loc +=1
 
         if offset > 0:
@@ -488,9 +544,8 @@ class traffic_player:
                 #print(orig,end='\n\n')
                 #print(build)
                 build = build.replace(exclude_me,self.get_valid_random_bytes(len(exclude_me)))
-        if inbody:
-            '<body>'.encode('latin_1')+build.decode('latin_1')+'<body>'
-        return build,curr_loc
+
+        return build,curr_loc,http_option
 
     def get_content(self,le_string):
         print(le_string)
@@ -499,25 +554,6 @@ class traffic_player:
         payload_content = bytearray()
         if content.startswith('\"') and content.endswith('\"'):
             content = content[1:-1]
-#I don't think this is needed. We have the 'sub'        
-#        if '|' in content and not '\|' in content:
-#            
-#            content = content.split('|')
-#            print(len(content))
-#            print(content)
-#            exit(0)
-#            for itemz in content:
-#                print(itemz)
-#                if (' ' in str(itemz) or( len(itemz) > 1 and len(itemz) < 3)):
-#                    try:
-#                        
-#                        payload_content.extend( bytearray.fromhex(itemz))
-#                    except ValueError:
-#                        payload_content.extend(itemz.encode('latin_1'))
-#                        pass
-#                elif len(itemz) > 0 :
-#                    payload_content.extend(itemz.encode('latin_1'))
-#        else:
         content = re.sub(HEX_IDENTIFIER,self.hex_match,content)
         payload_content.extend(content.encode('latin_1'))
         return payload_content
@@ -530,6 +566,7 @@ class traffic_player:
         if the_regex.startswith('/^'):
             the_regex = the_regex[2:]
         re_opts = the_regex[the_regex.rfind('/'):]
+        
         the_regex = the_regex[:the_regex.rfind('/')]
         #TODO IMPLEMENT SNORT OPTIONS.
         #print(re_opts)
@@ -542,7 +579,13 @@ class traffic_player:
         with open('./Snort/pcre_gen.txt','r') as f:
             the_regex = f.read()
             f.close()
-
+        if 'D' in re_opts:
+            if 'Cookie' in the_regex:
+                self.http_modifiers.update({'http_cookie':bytearray(the_regex.encode('latin_1'))})
+                return None
+        if 'U' in re_opts:
+            self.http_modifiers.update({'http_uri':bytearray(the_regex.encode('latin_1'))})
+            return None
         return bytearray(the_regex.encode('latin_1'))
     def rstring_arrbuilder(self, the_regex):
         if '\s' in the_regex:
