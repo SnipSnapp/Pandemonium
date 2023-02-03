@@ -1,14 +1,15 @@
 from Snort.snort_engine import Snort_Engine
 import argparse
 import os
-import scapy.all as scapy
 
 parser = argparse.ArgumentParser(description='Snort rule player. Test snort rules over the wire without a pcap!')
 parser.add_argument('-Srf','--Snort_rules_folder', help='Path to Snort rules folder.', default='./Rules')
 parser.add_argument('-Scfg','--Snort_config_file',help='Path to Snort config file.', default='./Snort/config/Snort_config.txt')
-parser.add_argument('-Sm','--Signature_mode',help='The type of signature you are using.',default='Snort',choices=['Yara','Snort'])
+parser.add_argument('-Sm','--Signature_mode',help='The type of signature you are using. THIS ONLY USES SNORT FOR NOW. YARA IS FUTURE, POST SNORT',default='Snort',choices=['Yara','Snort'])
 parser.add_argument('-MoS', '--Sender_MAC_Address', help='The MAC address of the sender.[XX:XX:XX:XX:XX:XX]', default='RANDOM')
-
+parser.add_argument('-MoR', '--Receiver_MAC_Address',help='The MAC address of the receiver.[XX:XX:XX:XX:XX:XX]',default='RANDOM')
+parser.add_argument('-IoR', '--Receiver_IP_Address',help='The IP address of the receiver.[XXX.XXX.XXX.XXX]',default='RANDOM')
+parser.add_argument('-IoS', '--Sender_IP_Address',help='The IP address of the Sender.[XXX.XXX.XXX.XXX]',default='RANDOM')
 def print_bad_opt():
 
     parser.print_help()
