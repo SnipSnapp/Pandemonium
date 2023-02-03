@@ -1,4 +1,4 @@
-# NetSignature_Spammer
+# Intrusion Detection Packet Spoofer (iDPS)
 
 ## Currently in Development.
 ## Setup/Dependencies
