@@ -59,7 +59,7 @@ class Snort_Engine():
         print(self.rules.keys())
         
         #rule_definition = self.rules['bugtraq,57842'].rules
-        print(self.rules['bugtraq,57842'].rules[0])
+        #print(self.rules['bugtraq,57842'].rules[0])
         #print("rule iz")
         #print(rule_definition[1])
         #print('\n')
@@ -74,12 +74,14 @@ class Snort_Engine():
                 print(self.rules[itemno].rules[1])
                 for x in range(5):
                     print(f'\n\n{self.rules[itemno].rules[0]}\n\n{self.rules[itemno].rules[1]}\n\n')
-                    traffic_player(self.rules[itemno].rules[0],self.rules[itemno].rules[1],None,None).send_traffic()
-
+                    try:
+                        traffic_player(self.rules[itemno].rules[0],self.rules[itemno].rules[1],None,None).send_traffic()
+                    except:
+                        pass
               
                  
                 print(my_keys[item_todo+1])
-                playone = False
+                #playone = False
 
             else:
                 
