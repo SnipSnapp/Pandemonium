@@ -16,21 +16,15 @@
   --TCP/UDP  
   --Ports  
   --Direction  
+  
 ### Currently Supported Snort Rule Options for Payloads
   --Depth  
   --offset  
   --distance  
   --within  
   --isdataat  
-  --pcre  
-  --http_cookie  
-  --http_header  
-  --http_uri  
-  --http_raw_cookie  
-  --http_raw_uri  
-  --http_stat_code  
-  --uricontent  
-  --urilen  
+  --pcre 
+ 
 ### Currently Supported Services/Applications
   --Generic (Unknown apps, these default to pop3)  
   --pop3  
@@ -51,7 +45,14 @@
   --Designate Src/Dst port on command-line  
   
 ### Currently Planned Services
-  --ftp  
+  --http_cookie  
+  --http_header  
+  --http_uri  
+  --http_raw_cookie  
+  --http_raw_uri  
+  --http_stat_code  
+  --uricontent  
+  --urilen  
   --Any additional snort specific service identifiers I find while figurin out rulez.  
   --All scapy service options listed in scapy (Long-term)  
   
