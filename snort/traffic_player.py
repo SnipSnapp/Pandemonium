@@ -98,9 +98,9 @@ class traffic_player:
         #rule header build    
         self.traffic_protocol = header['protocol']
         
-        self.client = "192.168.68.62"#str(self.get_ip_address(header['rule_ip_src']))#
+        self.client = str(self.get_ip_address(header['rule_ip_src']))#
         self.client_port = self.get_port(header['rule_src_p'])
-        self.server = "192.168.68.63"#str(get_ip_address(header['rule_ip_dst']))
+        self.server = str(get_ip_address(header['rule_ip_dst']))
         self.server_port = self.get_port(header['rule_dst_p'])
         if self.client_mac is None or self.client_mac == 'RANDOM':
             self.client_mac = self.get_random_mac()
