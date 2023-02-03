@@ -1,0 +1,4 @@
+scapy==2.5.0
+ipaddress==1.0.23
+regex==2022.10.31
+argparse==1.4.0
