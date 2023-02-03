@@ -1,4 +1,5 @@
 from scapy.all import *
+from scapy.layers import http
 from random import randrange
 from random import randbytes
 from ipaddress import IPv4Network, IPv4Address
@@ -97,9 +98,9 @@ class traffic_player:
         #rule header build    
         self.traffic_protocol = header['protocol']
         
-        self.client = "192.168.68.60"#str(self.get_ip_address(header['rule_ip_src']))#
+        self.client = "192.168.68.62"#str(self.get_ip_address(header['rule_ip_src']))#
         self.client_port = self.get_port(header['rule_src_p'])
-        self.server = "192.168.68.61"#str(get_ip_address(header['rule_ip_dst']))
+        self.server = "192.168.68.63"#str(get_ip_address(header['rule_ip_dst']))
         self.server_port = self.get_port(header['rule_dst_p'])
         if self.client_mac is None or self.client_mac == 'RANDOM':
             self.client_mac = self.get_random_mac()
@@ -189,6 +190,41 @@ class traffic_player:
             sendp(client_IP_Layer/UDP(sport = self.client_port, dport=self.server_port)/self.payload)
             sendp(server_IP_Layer/UDP(sport = self.server_port, dport=self.client_port)/self.payload)
     def send_full_http(self):
+        TLDs =''
+        with open('Snort/config/TLDs.txt','r') as f:
+            TLDs = f.readlines()
+            f.close
+        self.client_port = 8080
+        UAs = ''
+        with open('Snort/config/HTTP_Usr_Agts.txt','r') as f:
+            UAs = f.readlines()
+            f.close
+        letters = string.ascii_lowercase
+        
+        host = ''.join(random.choice(letters) for i in range(random.randint(5,20))) + '.'+random.choice(TLDs).strip().lower()
+        Usr_Agent = ''.join(random.choice(UAs))
+        Usr_Agent = Usr_Agent.strip().strip(' ')
+        Get_Accept = 'text/html,application/xhtml+xml,application/xml,;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=*0.9'
+        Get_encode = 'gzip, deflate'
+        
+        opts = [('SAckOK','')]
+        client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
+        server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
+        sendp(client_Hello, verbose=True)
+
+        Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
+        sendp(Server_SA, verbose=True)
+
+        client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
+        sendp(client_A)
+        Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)/http.HTTP()/http.HTTPRequest(Method='GET', Host=host, User_Agent=Usr_Agent,Accept=Get_Accept, Connection='Keep-Alive')
+        sendp(Server_init_http)
+        
+        Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='PA', seq=Server_init_http.seq, ack= Server_init_http.ack)
+        sendp(Server_resp_init)
+        Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=self.server, Location=host+self.http_modifiers.get('URI'))/'<html><p>Hello</p></html>'/http.http
+        sendp(Server_Send_HTML)
         print(self.http_modifiers)
         
         exit(0)
@@ -196,7 +232,8 @@ class traffic_player:
         #print(self.payload_flow[1])
         if self.traffic_protocol == 'tcp':
             if self.payload_service in 'http' or len(self.http_modifiers) !=0:
-                self.send_full_http()
+                #self.send_full_http()
+                pass
             else:
                 self.send_full_convo()
         elif self.traffic_protocol =='udp':
@@ -265,7 +302,9 @@ class traffic_player:
 
     def get_port(self,port):
         my_port = 0
-        
+        if str(port).startswith('!'):
+            port = port[1:]
+            my_port = randrange(1,65535)
         if type(port) is list:
             for cnt,port_obj in enumerate(port):
                 port[cnt] = self.get_port(port_obj)
