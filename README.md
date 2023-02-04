@@ -31,7 +31,8 @@
   --distance  
   --within  
   --isdataat  
-  --pcre 
+  --pcre
+  --http-header (parts of it)
  
 ### Currently Supported Services/Applications
   --Generic (Unknown apps, these default to pop3)  
