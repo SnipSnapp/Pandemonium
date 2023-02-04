@@ -1,13 +1,13 @@
 # Intrusion Detection Packet Spoofer (iDPS)
 ## What it does
-  This tool/script utilizes Snort rules and Snort configurations to "Play" network signatures. Using this tool you will be able to test if an IDS detects the malicious behaviors you are looking for. Let's say Log4J just came out, and all you have is a network signature, or an idea of how the traffic looks. Instead of having to execute the zero-day yourself, or find a pcap to verify that your tools will generate a detection you can use this tool. This tool is able to take a network signature and will play traffic that looks like the malicious code for you.
-  Applications:
-  --Verify a pay-to-play IDS has coverage over different exploits without having to actually perform the exploit.
-  --Verify that your detections are working the way you want.
-  --Quantifiably compare IDS solutions.
-  --Perform fuzzing of websites and web interfaces for randomized inputs.
-  --Fine tune your signature based detections.
-  <WARNING>There's no guarantee that this tool can't harm your environment<WARNING>
+  This tool/script utilizes Snort rules and Snort configurations to "Play" network signatures. Using this tool you will be able to test if an IDS detects the malicious behaviors you are looking for. Let's say Log4J just came out, and all you have is a network signature, or an idea of how the traffic looks. Instead of having to execute the zero-day yourself, or find a pcap to verify that your tools will generate a detection you can use this tool. This tool is able to take a network signature and will play traffic that looks like the malicious code for you.\
+  Applications:\
+  --Verify a pay-to-play IDS has coverage over different exploits without having to actually perform the exploit.\
+  --Verify that your detections are working the way you want.\
+  --Quantifiably compare IDS solutions.\
+  --Perform fuzzing of websites and web interfaces for randomized inputs.\
+  --Fine tune your signature based detections.\
+  <WARNING>There's no guarantee that this tool can't harm your environment<WARNING>\
 ## Currently in Development.
 ## Setup/Dependencies
   Supported Operating Systems: Windows, Linux (Ubuntu Tested, unknown for other Linux flavors)  
