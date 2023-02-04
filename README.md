@@ -7,7 +7,7 @@
   --Quantifiably compare IDS solutions.\
   --Perform fuzzing of websites and web interfaces for randomized inputs.\
   --Fine tune your signature based detections.\
-  <WARNING>There's no guarantee that this tool can't harm your environment<WARNING>\
+  [WARNING]There's no guarantee that this tool can't harm your environment[WARNING]
 ## Currently in Development.
 ## Setup/Dependencies
   Supported Operating Systems: Windows, Linux (Ubuntu Tested, unknown for other Linux flavors)  
