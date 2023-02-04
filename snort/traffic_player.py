@@ -19,6 +19,8 @@ SUPPORTED_NEXT = ['base64_decode:','base64_data']
 TEMP_BAD = ''
 BAD_HEXSTRINGS = []
 BLACKLIST_MACS = []
+TLDs=None
+UAs=None
 #these are separate because the list is different, and corresponds to http
 HTTP_OPTS = ['http_cookie','http_header','http_uri','http_raw_cookie','http_raw_header','http_raw_uri','http_stat_code','uricontent','urilen','http_method']
 #yes, technically it should have /,= but these will make snort stop processing, and an '==' is added to the end.
@@ -26,6 +28,12 @@ HTTP_OPTS = ['http_cookie','http_header','http_uri','http_raw_cookie','http_raw_
 x64_RANDOM_CHAR_LIST='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890+'
 #PCRE IS BASIC NEEDS WORK
 #NEED TO REFORMAT DATA FOR ISDATAAT
+with open('Snort/config/HTTP_Usr_Agts.txt','r') as f:
+            UAs = f.readlines()
+            f.close
+with open('Snort/config/TLDs.txt','r') as f:
+    TLDs = f.readlines()
+    f.close
 
 with open('Snort/config/blacklist_ips.txt', 'r') as f:
         BLACKLIST_IPS = f.readlines()
@@ -75,7 +83,8 @@ class traffic_player:
         self.base64_encode_num_bytes = 0
         self.isdataat = 0
         self.sticky_x64_decode = False
-        self.http_modifiers= {}
+        self.http_modifiers= {'http_cookie':'','http_header':bytearray(),'http_uri':'/','http_raw_cookie':'',
+        'http_raw_header':'','http_raw_uri':'','http_stat_code':'','uricontent':'/','urilen':'','http_method':'GET'}
         self.build_traffic(header,contents)
         
 
@@ -100,13 +109,13 @@ class traffic_player:
         
         self.client = str(self.get_ip_address(header['rule_ip_src']))#
         self.client_port = self.get_port(header['rule_src_p'])
-        self.server = str(get_ip_address(header['rule_ip_dst']))
+        self.server = str(self.get_ip_address(header['rule_ip_dst']))
         self.server_port = self.get_port(header['rule_dst_p'])
         if self.client_mac is None or self.client_mac == 'RANDOM':
             self.client_mac = self.get_random_mac()
         if self.server_mac is None or self.server_mac == 'RANDOM':
             self.server_mac = self.get_random_mac()
-        self.server_mac = '00:0C:29:BC:72:6F'
+        
        
         
         #Rule contents build
@@ -139,15 +148,15 @@ class traffic_player:
         #print("sent 1 I guess")
         client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
         server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        if self.payload_flow[1] == 'established':
+            client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
+            sendp(client_Hello, verbose=True)
 
-        client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
-        sendp(client_Hello, verbose=True)
+            Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
+            sendp(Server_SA, verbose=True)
 
-        Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
-        sendp(Server_SA, verbose=True)
-
-        client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
-        sendp(client_A, verbose=True)
+            client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
+            sendp(client_A, verbose=True)
         serv_pload = None
         client_payload = None
         if self.payload_flow[0] == 'from_server':
@@ -190,50 +199,67 @@ class traffic_player:
             sendp(client_IP_Layer/UDP(sport = self.client_port, dport=self.server_port)/self.payload)
             sendp(server_IP_Layer/UDP(sport = self.server_port, dport=self.client_port)/self.payload)
     def send_full_http(self):
-        TLDs =''
-        with open('Snort/config/TLDs.txt','r') as f:
-            TLDs = f.readlines()
-            f.close
-        self.client_port = 8080
-        UAs = ''
-        with open('Snort/config/HTTP_Usr_Agts.txt','r') as f:
-            UAs = f.readlines()
-            f.close
+        #self.http_modifiers= {'http_cookie':'','http_header':'','http_uri':'/','http_raw_cookie':'',
+        #'http_raw_header':'','http_raw_uri':'','http_stat_code':'','uricontent':'/','urilen':'','http_method':'GGET'}
+        global TLDs, UAs
+        #REMOVE THIS POST TESTING
+        
+
         letters = string.ascii_lowercase
         
         host = ''.join(random.choice(letters) for i in range(random.randint(5,20))) + '.'+random.choice(TLDs).strip().lower()
+        
         Usr_Agent = ''.join(random.choice(UAs))
         Usr_Agent = Usr_Agent.strip().strip(' ')
-        Get_Accept = 'text/html,application/xhtml+xml,application/xml,;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=*0.9'
+        Get_Accept = '*/*'
         Get_encode = 'gzip, deflate'
         
         opts = [('SAckOK','')]
         client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
         server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
-        client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
-        sendp(client_Hello, verbose=True)
-
-        Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
-        sendp(Server_SA, verbose=True)
-
-        client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
-        sendp(client_A)
-        Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)/http.HTTP()/http.HTTPRequest(Method='GET', Host=host, User_Agent=Usr_Agent,Accept=Get_Accept, Connection='Keep-Alive')
-        sendp(Server_init_http)
         
-        Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='PA', seq=Server_init_http.seq, ack= Server_init_http.ack)
+        if self.payload_flow[1] == 'established':
+            
+            client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
+            sendp(client_Hello, verbose=True)
+
+            Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
+            sendp(Server_SA, verbose=True)
+
+            client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
+            sendp(client_A)
+        if self.payload_flow[0] =='from_client':
+            if len(self.http_modifiers['http_header']) >= 1:
+                header_opts = self.http_modifiers['http_header'].decode('latin_1').split('\r\n')
+                for x in header_opts:
+                    if 'User-Agent:' in x:
+                        if 'User-Agent: ' in x:
+                            Usr_Agent = x[len('User-Agent: '):]
+                        else:
+                            Usr_Agent = x[len('User-Agent'):]
+                    elif 'Host:' in x:
+                        host=x
+                    elif 'Accept:' in x:
+                        Get_Accept = x
+
+                Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)/http.HTTP()/http.HTTPRequest(Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept)
+                pass
+            sendp(Server_init_http)
+
+        Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='A', seq=Server_init_http.seq, ack= Server_init_http.ack)
         sendp(Server_resp_init)
-        Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=self.server, Location=host+self.http_modifiers.get('URI'))/'<html><p>Hello</p></html>'/http.http
+        Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=random.choice(['Apache','gws']), Location='http://'+host+self.http_modifiers.get('http_uri'),Content_Type='text/html; charset=UTF-8')/'<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.com/">here</A>.\n</BODY></HTML>'
         sendp(Server_Send_HTML)
+        #client_FA = client_IP_Layer/TCP(sport=self.client_port,dport=self.server_port,flags='FA', seq=)
         print(self.http_modifiers)
         
         exit(0)
     def send_traffic(self):
         #print(self.payload_flow[1])
         if self.traffic_protocol == 'tcp':
-            if self.payload_service in 'http' or len(self.http_modifiers) !=0:
-                #self.send_full_http()
-                pass
+            if self.payload_service in 'http':
+                self.send_full_http()
+                
             else:
                 self.send_full_convo()
         elif self.traffic_protocol =='udp':
@@ -401,9 +427,9 @@ class traffic_player:
             self.sticky_x64_decode = True
         #print("ENCODING WILL HAPPEN")
     def get_service(self,cont):
-        svc = None
+        global HTTP_OPTS
+        svc = 'general'
         for x in cont:
-            
             if x[0] == 'metadata:service' or 'service' in x[0] or 'metadata:' in x[0]:
                 if 'metadata' in x[0]:
                     meta = x[1].split(',')
@@ -416,8 +442,17 @@ class traffic_player:
                             else:
                                 svc = k[1]
                             break
-                else:
-                    svc = x[1]
+                
+            for op in HTTP_OPTS:
+                print(op)
+                print(x[0])
+                if op is not None and x[0].lower() in op:
+                    print("changed svc.")
+                    svc = 'http'
+            if svc in 'http':
+                break
+            else:
+                svc = x[1]
             
         print(svc)
         if svc in KNOWN_SERVICES  :
@@ -446,7 +481,10 @@ class traffic_player:
                     if http_opt is None and curr_cap is not None:
                         payload.extend(curr_cap)
                     elif curr_cap is not None:
-                        self.http_modifiers.update({http_opt:bytearray(curr_cap)})
+                        if 'header' in http_opt:
+                            self.http_modifiers['http_header'] += bytearray(curr_cap+bytearray('\r\n'.encode('latin_1')))
+                        else:
+                            self.http_modifiers.update({http_opt:bytearray(curr_cap)})
                     details = cont[count]
                 else:
                     #print("DOING x64")
@@ -562,7 +600,6 @@ class traffic_player:
 
             else:
                 for cnt,http_opt in enumerate(HTTP_OPTS):
-                    print("THIS WAS HIT, WE KNOW THERE IS AN HTTP OPT HERE.")
                     if http_opt == cont[curr_loc][0]:
                         http_option = cont[curr_loc][0]
                 break
