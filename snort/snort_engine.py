@@ -1,7 +1,9 @@
 import re
 import os
+import time
 from .snort_rule import Snort_Rule
 from .traffic_player import traffic_player
+import copy
 class Snort_Engine():
     rule_actions = ['alert','block','drop','log','pass']
     rule_protocols = ['ip','icmp','tcp','udp']
@@ -56,40 +58,18 @@ class Snort_Engine():
         self.play_pcap(self.rules)
 
     def play_pcap(self, rule):
-        print(self.rules.keys())
-        
-        #rule_definition = self.rules['bugtraq,57842'].rules
-        #print(self.rules['bugtraq,57842'].rules[0])
-        #print("rule iz")
-        #print(rule_definition[1])
-        #print('\n')
-        playone=True
-        item_todo =0
-        my_keys = list(self.rules.keys())
-        print(type(my_keys))
-        for itemno in my_keys[item_todo:]:
-            
-            if playone:
-                print(self.rules[itemno].rules[0])
-                print(self.rules[itemno].rules[1])
-                for x in range(5):
-                    print(f'\n\n{self.rules[itemno].rules[0]}\n\n{self.rules[itemno].rules[1]}\n\n')
-                    try:
-                        traffic_player(self.rules[itemno].rules[0],self.rules[itemno].rules[1],None,None).send_traffic()
-                    except:
-                        pass
-              
-                 
-                print(my_keys[item_todo+1])
-                #playone = False
 
-            else:
-                
-                exit
-                
-           
+        playone=True
+        item_todo =3
+        my_keys = list(self.rules.keys())
+        
+        for itemno in my_keys[item_todo:]:     
+            print('************* '+itemno + ' *************')  
+            for x in range(6):
+                time.sleep(0.1)
+                opt_placehold = copy.deepcopy(self.rules[itemno].rules[1])
+                head_placehold =self.rules[itemno].rules[0].copy()
+                traffic_player(head_placehold,opt_placehold,None,None).send_traffic() 
+            print('**************'+(len(itemno)*'*') + '**************')
         print("done...")
         exit(0)
-
-    
-    
