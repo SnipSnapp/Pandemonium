@@ -4,12 +4,15 @@ import os
 class Snort_Rule():
     rule_actions = ['alert','block','drop','log','pass']
     rule_protocols = ['ip','icmp','tcp','udp']
-    rule_gen_opts = ['msg:','reference:','gid:','sid:','rev:','classtype:','priority:','metadata:service','metadata:','content:','distance:','base64_decode:','base64_data','isdataat:','flow:','within:','pcre:','http_cookie','http_header','http_method','http_uri','http_raw_cookie','http_raw_header','http_raw_uri','http_stat_code','uricontent','urilen']
+    rule_gen_opts = ['msg:','reference:','gid:','sid:','rev:','classtype:','priority:','metadata:service','metadata:',
+    'content:','distance:','base64_decode:','base64_data','isdataat:',
+    'flow:','within:','pcre:','http_cookie','http_header','http_method',
+    'http_uri','http_raw_cookie','http_raw_header','http_raw_uri','http_stat_code','uricontent','urilen']
     IP_RE      = re.compile(r"(!){0,1}(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d|(?:\.\d))(?!\/)")
     IP_CIDR_RE = re.compile(r"(!){0,1}(?<!\d\.)(?<!\d)(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}(?!\d|(?:\.\d))")
     #Will take the last 5 characters of a digit string if the digit is longer than 5
     PORT_RE = re.compile(r'(!){0,1}(:){0,1}([1-9]){1}([0-9]){0,4}(?!\d)(:){0,1}(([1-9]){1}([0-9]){0,4}(?!\d)){0,1}')
-    RULE_RE = re.compile(r'(alert|block|drop|log|pass)(.+)(\))')
+    RULE_RE = re.compile(r'(alert|block|drop|log|pass)(.*)(content:){1,}(.*)(\))')
     
 
     def __init__(self,input, config):
@@ -24,21 +27,18 @@ class Snort_Rule():
         self.port_vars = {}
         self.my_pcap = None
         self.__set_vars__(config)
-
-        rules = re.findall(self.RULE_RE,input)
-        
-        for i in rules:
-            rh = self.__get_rule_header__(''.join(i))
-            rp = self.__get_rule_params__(''.join(i))
-            vl = [rh,rp]
-            self.rule_name = self.__get_rule_name__(''.join(i))
+        rules = input
+        rh = self.__get_rule_header__(rules)
+        rp = self.__get_rule_params__(rules)
+        vl = [rh,rp]
+        self.rule_name = self.__get_rule_name__(rules)
             #temp removal from the double naming convention times
             #vlus = {self.__get_rule_name__(''.join(i)):vl}
             #self.rules.update(vlus)
-            self.rules=vl
+        self.rules=vl
             
     def __get_rule_params__(self, rule):
-        content = re.search(r'(\(.+?\))', rule).group()
+        content = re.search(r'(\(.*)', rule).group()
         content = content[1:len(content)-1].split(';')
         services = []
         flow = None
