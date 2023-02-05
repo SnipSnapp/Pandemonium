@@ -28,6 +28,7 @@ HTTP_OPTS = ['http_cookie','http_header','http_uri','http_raw_cookie','http_raw_
 x64_RANDOM_CHAR_LIST='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890+'
 #PCRE IS BASIC NEEDS WORK
 #NEED TO REFORMAT DATA FOR ISDATAAT
+#BUG: Using '!' breaks future plays of same rule... lol.
 with open('Snort/config/HTTP_Usr_Agts.txt','r') as f:
             UAs = f.readlines()
             f.close
@@ -107,15 +108,15 @@ class traffic_player:
         #rule header build    
         self.traffic_protocol = header['protocol']
         
-        self.client = str(self.get_ip_address(header['rule_ip_src']))#
+        self.client = "192.168.68.60"#str(self.get_ip_address(header['rule_ip_src']))#
         self.client_port = self.get_port(header['rule_src_p'])
-        self.server = str(self.get_ip_address(header['rule_ip_dst']))
+        self.server = "192.168.68.63"#str(get_ip_address(header['rule_ip_dst']))
         self.server_port = self.get_port(header['rule_dst_p'])
         if self.client_mac is None or self.client_mac == 'RANDOM':
             self.client_mac = self.get_random_mac()
         if self.server_mac is None or self.server_mac == 'RANDOM':
             self.server_mac = self.get_random_mac()
-        
+        self.server_mac = '00:0C:29:BC:72:6F'
        
         
         #Rule contents build
@@ -126,9 +127,7 @@ class traffic_player:
             self.server_port = placehold
 
         self.payload_service = self.get_service(contents)
-        #REALLY don't need this.  Instead need to modify the get_payload & Payload_helper functions to add to our dictionary of HTTP opts.
-        print(len(self.http_modifiers))
-        
+        #REALLY don't need this.  Instead need to modify the get_payload & Payload_helper functions to add to our dictionary of HTTP opts.        
         self.payload = self.get_payload(contents)
         print(f"Service:{self.payload_service}")
         print(f"Protocol:{self.traffic_protocol}")
@@ -137,26 +136,22 @@ class traffic_player:
         print(f"Flow:{self.payload_flow}")
         print("|--Payload--|")
         print(self.payload)
-        
         print('|-----------|\n')
         
-
     def send_full_convo(self):
-        #print("Sending")
         opts = [('SAckOK','')]
         #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
-        #print("sent 1 I guess")
         client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
         server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
         if self.payload_flow[1] == 'established':
             client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
-            sendp(client_Hello, verbose=True)
+            sendp(client_Hello, verbose=False)
 
             Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
-            sendp(Server_SA, verbose=True)
+            sendp(Server_SA, verbose=False)
 
             client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
-            sendp(client_A, verbose=True)
+            sendp(client_A, verbose=False)
         serv_pload = None
         client_payload = None
         if self.payload_flow[0] == 'from_server':
@@ -165,33 +160,35 @@ class traffic_player:
         else:
             serv_pload = bytearray(self.get_valid_random_bytes(randrange(1,len(self.payload))))
             client_payload = self.payload
-        
-        Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA', seq = client_A.seq, ack = client_A.ack)/serv_pload
-        sendp(Server_payload, verbose=True)
+        if self.payload_flow[1] == 'established':
+            Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA', seq = client_A.seq, ack = client_A.ack)/serv_pload
+        else:
+            Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA',)/serv_pload
+
+        sendp(Server_payload, verbose=False)
         
         Client_Resp_1 = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='PA', seq = Server_payload.seq, ack = len(Server_payload[Raw].load))/client_payload
-        sendp(Client_Resp_1, verbose=True)
+        sendp(Client_Resp_1, verbose=False)
 
 
         client_A = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='A',seq = Server_payload.seq, ack= len(Server_payload[Raw].load))
-        sendp(client_A, verbose=True)
+        sendp(client_A, verbose=False)
 
         server_A = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='A', seq = Server_payload.seq, ack=len(Client_Resp_1[Raw].load))
-        sendp(server_A, verbose=True)
+        sendp(server_A, verbose=False)
 
         server_pre_fin_psh = server_IP_Layer/TCP(sport = self.server_port,dport = self.client_port, flags='FPA', seq = len(Server_payload[Raw].load) + 1, ack = len(Client_Resp_1[Raw].load) )/bytearray(self.get_valid_random_bytes(randrange(1,len(Client_Resp_1[Raw].load)+2)))
-        sendp(server_pre_fin_psh, verbose=True)
+        sendp(server_pre_fin_psh, verbose=False)
 
         client_FA = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags='FA', seq=len(Client_Resp_1[Raw].load)+ 1, ack=len(server_pre_fin_psh[Raw].load))
-        sendp(client_FA, verbose=True)
+        sendp(client_FA, verbose=False)
 
         serv_fin_ack = server_IP_Layer/TCP(sport=self.server_port, dport=self.client_port, flags='A', seq=client_FA.ack, ack=client_FA.seq +1)
-        sendp(serv_fin_ack, verbose=True)
+        sendp(serv_fin_ack, verbose=False)
         #send(serv_signoff)
     def send_udp_convo(self):
         opts = [('SAckOK','')]
         #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
-        #print("sent 1 I guess")
         client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
         server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
         
@@ -217,17 +214,21 @@ class traffic_player:
         opts = [('SAckOK','')]
         client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
         server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
-        
+        theseq=0
+        theack=0
         if self.payload_flow[1] == 'established':
             
             client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
-            sendp(client_Hello, verbose=True)
+            sendp(client_Hello, verbose=False)
 
             Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
-            sendp(Server_SA, verbose=True)
+            sendp(Server_SA, verbose=False)
 
             client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
-            sendp(client_A)
+            sendp(client_A, verbose=False)
+            theseq=client_Hello.seq
+            theack=client_Hello.ack + 1
+        
         if self.payload_flow[0] =='from_client':
             if len(self.http_modifiers['http_header']) >= 1:
                 header_opts = self.http_modifiers['http_header'].decode('latin_1').split('\r\n')
@@ -242,20 +243,22 @@ class traffic_player:
                     elif 'Accept:' in x:
                         Get_Accept = x
 
-                Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)/http.HTTP()/http.HTTPRequest(Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept)
-                pass
-            sendp(Server_init_http)
-
-        Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='A', seq=Server_init_http.seq, ack= Server_init_http.ack)
-        sendp(Server_resp_init)
-        Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=random.choice(['Apache','gws']), Location='http://'+host+self.http_modifiers.get('http_uri'),Content_Type='text/html; charset=UTF-8')/'<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.com/">here</A>.\n</BODY></HTML>'
-        sendp(Server_Send_HTML)
-        #client_FA = client_IP_Layer/TCP(sport=self.client_port,dport=self.server_port,flags='FA', seq=)
+            Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept)/self.payload    
+            sendp(Server_init_http, verbose=False)
+            #'<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.com/">here</A>.\n</BODY></HTML>'
+            serv_payload = bytearray('<HTML><BODY>'.encode('latin_1')) + self.get_valid_random_bytes(randrange(200,6000)) + bytearray('</BODY></HTML>'.encode('latin_1'))
+        else:
+            serv_payload=self.payload
         print(self.http_modifiers)
-        
-        exit(0)
+        Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='A', seq=Server_init_http.seq, ack= Server_init_http.ack)
+        sendp(Server_resp_init,verbose=False)
+
+        Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=random.choice(['Apache','gws']), Location='http://'+host+self.http_modifiers.get('http_uri'),Content_Type='text/html; charset=UTF-8')/serv_payload
+        sendp(Server_Send_HTML,verbose=False)
+        #client_FA = client_IP_Layer/TCP(sport=self.client_port,dport=self.server_port,flags='FA', seq=)
+
     def send_traffic(self):
-        #print(self.payload_flow[1])
+
         if self.traffic_protocol == 'tcp':
             if self.payload_service in 'http':
                 self.send_full_http()
@@ -330,19 +333,24 @@ class traffic_player:
         my_port = 0
         if str(port).startswith('!'):
             port = port[1:]
-            my_port = randrange(1,65535)
+            if port.startswith('['):
+                port=port[1:-1]
+            if ':' in port:
+                port = port.split(':')
+                my_port = random.choice([randrange(1,int(port[0])-1),randrange(int(port[1])+1,65535)])
+                return my_port
+            else:
+                my_port = randrange(1,65535)
         if type(port) is list:
             for cnt,port_obj in enumerate(port):
                 port[cnt] = self.get_port(port_obj)
-            return random.choice(port)
-        
+            return random.choice(port)    
         if port is None or str(port) == 'any':
             my_port = randrange(1,65535)
             while my_port in BLACKLIST_PORTS:
                 my_port = randrange(1,65535)
         #SEEE https://www.sbarjatiya.com/notes_wiki/index.php/Configuring_snort_rules#Specifying_source_and_destination_ports
         elif '[' in str(port):
-            print(port)
             port_def = port.strip('[').strip(']')
             port_def = port_def.split(',')
             start_p = self.get_port(port_def[0])
@@ -360,7 +368,6 @@ class traffic_player:
                 my_port = randrange(1,int(port[1:]))
         elif str(port).endswith(':'):
             port = port.strip(':')
-            #print(port)
             #TEMP NEEDS TO BE REWORKED.
             try:
                 my_port =  randrange(int(port),65535)
@@ -374,17 +381,8 @@ class traffic_player:
             if ',' in port:
                 nums = port.strip('[').strip(']').strip(':')
                 nums = nums.split(',')
-                print("Port range is:")
-                print(nums)
             else:
                 nums = str(port).strip('[').strip(']').split(':') 
-            
-              
-            #print(nums)
-            #print(port) 
-           # print(nums[0])
-            
-            #print(nums[1])
             my_port =  randrange(int(nums[0]),int(nums[1]))
             while my_port in BLACKLIST_PORTS:
                 my_port = randrange(int(nums[0]),int(nums[1]))
@@ -410,22 +408,16 @@ class traffic_player:
         return [payload_direction,payload_form]
 
     def set_next_content_opts(self,itemno):
-        #print(itemno[0])
-        #print(itemno)
         if 'base64_decode:'in itemno[0]:
             self.base64_encode_next_payload = True
-            #print(itemno)
             the_x64data = itemno[1].split(',')
             for variablex64 in the_x64data:
                 if 'offset' in variablex64:
                     self.base64_encode_offset = int(str(variablex64).replace('offset','').replace(' ',''))
                 if 'bytes' in variablex64:
                     self.base64_encode_num_bytes = int(str(variablex64).replace('bytes','').replace(' ',''))
-        if 'base64_data' == itemno[0]:
-            #print("sticky-set")
-            
+        if 'base64_data' == itemno[0]:       
             self.sticky_x64_decode = True
-        #print("ENCODING WILL HAPPEN")
     def get_service(self,cont):
         global HTTP_OPTS
         svc = 'general'
@@ -436,25 +428,20 @@ class traffic_player:
                     for y in meta:
                         if 'service' in y:
                             k = y.split(' ')
-                            print(k)
                             if k[0] =='':
                                 svc=k[2]
                             else:
                                 svc = k[1]
-                            break
-                
+                            break               
             for op in HTTP_OPTS:
-                print(op)
-                print(x[0])
                 if op is not None and x[0].lower() in op:
-                    print("changed svc.")
                     svc = 'http'
             if svc in 'http':
                 break
             else:
                 svc = x[1]
             
-        print(svc)
+
         if svc in KNOWN_SERVICES  :
             return svc
         else:
@@ -467,17 +454,11 @@ class traffic_player:
         http_opt = None
         for count,details in enumerate(cont):
             if details[0] in SUPPORTED_NEXT:
-                #print("My details are:")
-                #print(details[1])
-                #print(details)
                 self.set_next_content_opts(details)
             elif details[0] == 'content:' or details[0] == 'pcre:':
-                    #need helper option here, to append to string, we don't need a flag, We need to skip ahead in the enumeration until we reach what it is we seek. This needs to be done in an array.    
-                #print(details)
-                
+                    #need helper option here, to append to string, we don't need a flag, We need to skip ahead in the enumeration until we reach what it is we seek. This needs to be done in an array.                    
                 if not self.base64_encode_next_payload and not self.sticky_x64_decode:
                     curr_cap,count,http_opt=self.payload_helper(cont,count)
-                    print(curr_cap,count,http_opt)
                     if http_opt is None and curr_cap is not None:
                         payload.extend(curr_cap)
                     elif curr_cap is not None:
@@ -487,12 +468,8 @@ class traffic_player:
                             self.http_modifiers.update({http_opt:bytearray(curr_cap)})
                     details = cont[count]
                 else:
-                    #print("DOING x64")
-                    #print(details)
-
                     curr_cap,count,http_opt=self.payload_helper(cont,count)
                     curr_cap = base64.b64decode(curr_cap)
-                    #print(curr_cap)
                     #I know this is really weird, but I did something I can't remember, and now this is the how we get x64 of the correct length. I know, super dumb, but it works? somehow?
                     #I'll fix it later, but this really is something I don't want to chase at the moment. It wasn't fun to figure out, granted I was playing overwatch & drinkin w/ some friends while coding it.
                     #After-all this is just a fun project that I have been doing.
@@ -502,7 +479,7 @@ class traffic_player:
                         self.http_modifiers.update({http_opt:curr_cap})
                     else:
                         x64_additions.append(curr_cap)
-        #print(x64_additions)
+
         #I know I can do this in a better/faster way, but at the time this helped me troubleshoot.
         true_addition = bytearray()
         for x in x64_additions:
@@ -510,9 +487,9 @@ class traffic_player:
             if addme.endswith('=='):
                 addme = addme[:-2]
             true_addition +=str(addme).encode('utf-8')
-        print(true_addition)
+
         true_addition= base64.b64encode(true_addition)
-        #print(true_addition)
+
         payload += true_addition[:-1] + self.get_valid_random_bytes(self.isdataat)
         return payload
 
@@ -528,17 +505,11 @@ class traffic_player:
 #currently doesn't support negative numbers in dist/offset
     def payload_helper(self,cont,count):
         not_flag = False
-        print(f'{cont[count][0]} \t\t{cont[count][1]}')
-        print(self.http_modifiers)
         if 'pcre' in cont[count][0] :
-            print("WE DID PCRE EXITING")
-            print(cont[count][1])
-            return self.reverse_pcre(cont[count][1]),count+1,None
-            
+            return self.reverse_pcre(cont[count][1]),count+1,None    
         if cont[count][1].startswith('!'):
             cont[count][1] = cont[count][1][1:]
             not_flag=True
-
         if str(cont[count][1]).startswith('\"') :
             cont[count][1] = cont[count][1][1:-1]
         build = bytearray()
@@ -549,7 +520,6 @@ class traffic_player:
         orig = bytearray(self.get_content(cont[count][1]))    
         build.extend(orig)
         if not_flag:
-            #print("reached_this")
             build = bytearray(self.get_valid_random_bytes(len(build)))
             
         curr_loc +=1
@@ -557,10 +527,11 @@ class traffic_player:
         offset = 0
         within = 0
         isdat =0
+        depth=0
         #Need to check for banned hex strings.
         http_option = None
         if self.base64_encode_next_payload or self.sticky_x64_decode:
-            #print("DECODING DATA")
+
             if self.base64_encode_num_bytes == 0:
                 self.base64_encode_num_bytes = len(build)
             build = bytearray(build[:self.base64_encode_offset] + base64.b64encode(build[self.base64_encode_offset:self.base64_encode_offset+self.base64_encode_num_bytes]) + build[self.base64_encode_offset+self.base64_encode_num_bytes:])
@@ -570,20 +541,19 @@ class traffic_player:
             self.base64_encode_offset=0
             self.base64_encode_next_payload=False
 
-            #print(build.decode('latin_1'))
+
         while curr_loc < len(cont) and (cont[curr_loc][0] in CONTENT_MODIFIERS or cont[curr_loc][0] in HTTP_OPTS) :
-            print(f'{cont[curr_loc][0]} \t\t{cont[curr_loc][1]}')
             if 'depth:' == cont[curr_loc][0]:
-                paysize += int(cont[curr_loc][1])
+                depth += int(cont[curr_loc][1])
             elif 'within:' in cont[curr_loc][0]:
                 within=  int(cont[curr_loc][1])
-                #print(f'within: {within}')
+
             elif 'pcre:' in cont[curr_loc][0]:
                 if build.decode('utf-8') in self.reverse_pcre(cont[curr_loc][1]).decode('utf-8'):
                     build = self.reverse_pcre(cont[curr_loc][1])
                 else:
                     break
-                #print(build)
+
                 
             elif 'isdataat:' == cont[curr_loc][0]:
                 if dofill== False:
@@ -612,20 +582,18 @@ class traffic_player:
         if self.isdataat> 0 and dofill:
             build.extend(bytearray(self.get_valid_random_bytes(self.isdataat)))                
             #self.isdataat = isdat
-            
+        if depth > 0:
+            build.append(self.get_valid_random_bytes(depth))    
         if not_flag:
             exclude_me = bytearray(self.get_content(cont[count][1]))
             while exclude_me in build:
-                #print("HEREee")
-                #print(orig,end='\n\n')
-                #print(build)
+
                 build = build.replace(exclude_me,self.get_valid_random_bytes(len(exclude_me)))
 
         return build,curr_loc,http_option
 
     def get_content(self,le_string):
-        print(le_string)
-        
+
         content = le_string
         payload_content = bytearray()
         if content.startswith('\"') and content.endswith('\"'):
@@ -636,7 +604,6 @@ class traffic_player:
 
     def reverse_pcre(self,the_regex):
 
-        print(os.getcwd())
         if the_regex.startswith('\"') and the_regex.endswith('\"'):
             the_regex = the_regex[1:-1]
         if the_regex.startswith('/^'):
@@ -645,7 +612,6 @@ class traffic_player:
         
         the_regex = the_regex[:the_regex.rfind('/')]
         #TODO IMPLEMENT SNORT OPTIONS.
-        #print(re_opts)
 
         the_regex = self.rstring_arrbuilder(the_regex)
         with open('./Snort/pcre_gen.txt','w') as f:
@@ -667,7 +633,7 @@ class traffic_player:
         if '\s' in the_regex:
             the_regex = the_regex.replace('\\s',' ')
         matching_unsupported_negate = re.findall('\[\^.+\]',the_regex)
-        print(matching_unsupported_negate)
+
         my_re = the_regex
 
         for x,negated in enumerate(matching_unsupported_negate):
@@ -690,22 +656,13 @@ class traffic_player:
         
         return content
 
-
-
-
 if __name__ == '__main__':
     header = {'rule_action': 'alert', 'protocol': 'tcp', 'rule_ip_src': 'any', 'rule_src_p': '110', 'rule_direction': '->', 'rule_ip_dst': 'any', 'rule_dst_p': 'any'}
     content = [['msg:', '"PROTOCOL-POP APOP USER overflow attempt"'], ['flow:', 'to_server,established'], ['content:', '"APOP"'], ['isdataat:', '256,relative'], ['pcre:', '"/^APOP\s+USER\s[^\\n]{256}/smi"'], ['metadata:', 'ruleset community, service pop3'], ['reference:', 'bugtraq,9794'], ['reference:', 'cve,2004-2375'], ['classtype:', 'attempted-admin'], ['sid:', '2409'], ['rev:', '11']]    
     ok = traffic_player(header,content,None, None)
     #ok.build_traffic(header,content)
-    print("Build complete.")
-    #ok.payload=bytearray('+OKSASLDIGEST-MD5+cmVhbG09Ig==K\x83\x15\x86\x04\x06\xe1\xb6\r8\xbc\xbb\xc22M\xa8\x92L\nB\xf1\xf78\xaa\x86\x16\xadEO\x92\x19\xbb\x9b\x9c4\x83\xa3\x8b\x1eINA\xf5\xbeN\xa1\xa5\x84\t|\xd5\xf6:<B\xc2#\xa3\x05\r\tj\xf6\xa2\xbc\xce*\xd1Iw\x9a\xc0\xff\xfe\x9d\x1db\x1e\xfa\xb0m\xc6\x89\xc6\x93W\\\x12[\xd5\xf6\xed\xad\xb9e\x04\x11\xe5b\xc5\xf4*\x03\xe7\xdf}\xc9}\x98\xb6\x12I\x1ek\x1aO\xd8\xebg\xe1\x8e\x13\xc7\x81thisisthestoryofagirlwhocriedariverthatdrownedthewholeworld'.encode('latin_1'))
-   # print(len(ok.payload))
-    #print(len('+OKSASLDIGEST-MD5+cmVhbG09Ig=='))
-    print(ok.payload[154])
     #while True:
     for x in range(1):
-        print('Sending')
         ok.send_traffic()
         sleep(5)
     #build_traffic(header, content)
