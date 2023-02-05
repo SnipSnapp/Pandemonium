@@ -84,7 +84,7 @@ class traffic_player:
         self.base64_encode_num_bytes = 0
         self.isdataat = 0
         self.sticky_x64_decode = False
-        self.http_modifiers= {'http_cookie':'','http_header':bytearray(),'http_uri':'/','http_raw_cookie':'',
+        self.http_modifiers= {'http_cookie':'','http_header':bytearray(),'http_uri':bytearray('/'.encode('latin_1')),'http_raw_cookie':'',
         'http_raw_header':'','http_raw_uri':'','http_stat_code':'','uricontent':'/','urilen':'','http_method':'GET'}
         self.build_traffic(header,contents)
         
@@ -243,7 +243,7 @@ class traffic_player:
                     elif 'Accept:' in x:
                         Get_Accept = x
 
-            Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept)/self.payload    
+            Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept,Path=self.http_modifiers['http_uri'])/self.payload    
             sendp(Server_init_http, verbose=False)
             #'<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.com/">here</A>.\n</BODY></HTML>'
             serv_payload = bytearray('<HTML><BODY>'.encode('latin_1')) + self.get_valid_random_bytes(randrange(200,6000)) + bytearray('</BODY></HTML>'.encode('latin_1'))
@@ -253,7 +253,7 @@ class traffic_player:
         Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='A', seq=Server_init_http.seq, ack= Server_init_http.ack)
         sendp(Server_resp_init,verbose=False)
 
-        Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=random.choice(['Apache','gws']), Location='http://'+host+self.http_modifiers.get('http_uri'),Content_Type='text/html; charset=UTF-8')/serv_payload
+        Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=random.choice(['Apache','gws']), Location=bytearray('http://'.encode('latin_1'))+bytearray(host.encode('latin_1'))+self.http_modifiers.get('http_uri'),Content_Type='text/html; charset=UTF-8')/serv_payload
         sendp(Server_Send_HTML,verbose=False)
         #client_FA = client_IP_Layer/TCP(sport=self.client_port,dport=self.server_port,flags='FA', seq=)
 
@@ -464,6 +464,11 @@ class traffic_player:
                     elif curr_cap is not None:
                         if 'header' in http_opt:
                             self.http_modifiers['http_header'] += bytearray(curr_cap+bytearray('\r\n'.encode('latin_1')))
+                        elif 'uri' in http_opt:
+                            if len(self.http_modifiers['http_uri']) > 1:
+                                self.http_modifiers['http_uri'] +=bytearray(curr_cap)
+                            else:
+                                self.http_modifiers.update({'http_uri':bytearray(curr_cap)})
                         else:
                             self.http_modifiers.update({http_opt:bytearray(curr_cap)})
                     details = cont[count]
