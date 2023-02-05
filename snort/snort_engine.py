@@ -23,7 +23,10 @@ class Snort_Engine():
         #print("parsing rules...")
         self.__parse_rule_files__()
         self.rules_list = list(self.rules.keys())
-        self.__select_rule__()
+        for cnt,itm in enumerate(self.rules_list):
+            print(str(cnt) + '. ' + itm)
+        #print(self.rules.keys())
+        
 
 
     def __parse_rule_files__(self):
@@ -54,22 +57,45 @@ class Snort_Engine():
                 exit(0)
            
             
-    def __select_rule__(self):
+    def select_rule(self,src_ip,dst_ip,src_mac,dst_mac,idno):
         self.play_pcap(self.rules)
 
-    def play_pcap(self, rule):
-
-        playone=True
-        item_todo =3
-        my_keys = list(self.rules.keys())
+    def play_pcap(self,MoS,MoR,IoR,IoS,SC,UI):
         
-        for itemno in my_keys[item_todo:]:     
+        if '-' in UI:
+            numbos = UI.strip().split('-')
+            try:
+                playone=False
+                stop=int(numbos[1])
+                start=int(numbos[0])
+            except:
+                print("INVALID RANGE FORMAT")
+                return
+        else:
+            try:
+                start=int(UI.strip())
+                start=stop
+                playone=True
+            except:
+                start=0
+                stop=len(self.rules_list)
+                playone=False
+            
+        try:
+            sc = int(SC)
+        except:
+            print("INVALID # OF \'PLAYS\' FORMAT.")
+            return
+        for itemno in self.rules_list[start:stop]:     
             print('************* '+itemno + ' *************')  
-            for x in range(6):
+            for x in range(sc):
                 time.sleep(0.1)
                 opt_placehold = copy.deepcopy(self.rules[itemno].rules[1])
                 head_placehold =self.rules[itemno].rules[0].copy()
-                traffic_player(head_placehold,opt_placehold,None,None).send_traffic() 
+                print(opt_placehold)
+                print(head_placehold)
+                traffic_player(head_placehold,opt_placehold,MoS,MoR,IoS,IoR).send_traffic() 
+            if playone:
+                return
             print('**************'+(len(itemno)*'*') + '**************')
         print("done...")
-        exit(0)
