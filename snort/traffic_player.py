@@ -68,11 +68,11 @@ class traffic_player:
     for i,ele in enumerate(BLACKLIST_PORTS):
         BLACKLIST_PORTS[i] = int(ele.strip())
     
-    def __init__(self, header, contents, client_mac, server_mac):
+    def __init__(self, header, contents, client_mac, server_mac,sender_ip,recv_ip):
         self.traffic_protocol = None
-        self.client = None
+        self.client = sender_ip
         self.client_port = None
-        self.server = None
+        self.server = recv_ip
         self.server_port = None
         self.payload_flow = None
         self.payload_service = None
@@ -105,20 +105,19 @@ class traffic_player:
 
     #------------------------------------------------------------------#
     def build_traffic(self,header,contents):
-        #rule header build    
+        #rule header build  
+        print(contents)
         self.traffic_protocol = header['protocol']
-        
-        self.client = "192.168.68.60"#str(self.get_ip_address(header['rule_ip_src']))#
+        if self.client is None or self.client =='RANDOM':
+            self.client = str(self.get_ip_address(header['rule_ip_src']))
         self.client_port = self.get_port(header['rule_src_p'])
-        self.server = "192.168.68.63"#str(get_ip_address(header['rule_ip_dst']))
+        if self.server is None or self.server =='RANDOM':
+            self.server = str(self.get_ip_address(header['rule_ip_dst']))
         self.server_port = self.get_port(header['rule_dst_p'])
         if self.client_mac is None or self.client_mac == 'RANDOM':
             self.client_mac = self.get_random_mac()
         if self.server_mac is None or self.server_mac == 'RANDOM':
-            self.server_mac = self.get_random_mac()
-        self.server_mac = '00:0C:29:BC:72:6F'
-       
-        
+            self.server_mac = self.get_random_mac()     
         #Rule contents build
         self.payload_flow = self.get_flow(contents)
         if self.payload_flow[0] =="from_server":
@@ -136,6 +135,8 @@ class traffic_player:
         print(f"Flow:{self.payload_flow}")
         print("|--Payload--|")
         print(self.payload)
+        if self.payload_service in 'http':
+            print(self.http_modifiers)
         print('|-----------|\n')
         
     def send_full_convo(self):
@@ -228,7 +229,7 @@ class traffic_player:
             sendp(client_A, verbose=False)
             theseq=client_Hello.seq
             theack=client_Hello.ack + 1
-        
+        unknown_load=bytearray()
         if self.payload_flow[0] =='from_client':
             if len(self.http_modifiers['http_header']) >= 1:
                 header_opts = self.http_modifiers['http_header'].decode('latin_1').split('\r\n')
@@ -243,32 +244,30 @@ class traffic_player:
                     elif 'Accept:' in x:
                         Get_Accept = x
                     else:
-                        print(x)
                         if len(x.lower())>1:
                             tstr = x.lower()
                             for tl in TLDs:
                                 y = '.' + tl.lower().strip()
-                                print(type(y))
-                                print(type(tstr))
-                                print(y + tstr)
                                 if tstr.endswith(y):
-                                    print("FOUND")
                                     if x.startswith(': '):
                                         x = x[2:]
                                     elif x.startswith(':'):
                                         x = x[1:]
                                     host=x
                                     break
+                if 'User-Agent:'.encode('latin_1') in self.payload and len(self.payload) > 1:
+                    unknown_load = self.payload.decode('latin_1').split(':')
+                    unknown_load = {unknown_load[0]:unknown_load[1]}
+                    Usr_Agent=None
 
-            Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept,Path=self.http_modifiers['http_uri'])/self.payload    
+
+            Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Unknown_Headers=unknown_load,Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept,Path=self.http_modifiers['http_uri'])/self.payload    
             sendp(Server_init_http, verbose=False)
-            print(Server_init_http)
-            print(host)
             #'<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.com/">here</A>.\n</BODY></HTML>'
             serv_payload = bytearray('<HTML><BODY>'.encode('latin_1')) + self.get_valid_random_bytes(randrange(200,6000)) + bytearray('</BODY></HTML>'.encode('latin_1'))
         else:
             serv_payload=self.payload
-        print(self.http_modifiers)
+
         Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='A', seq=Server_init_http.seq, ack= Server_init_http.ack)
         sendp(Server_resp_init,verbose=False)
 
@@ -573,7 +572,7 @@ class traffic_player:
                 within=  int(cont[curr_loc][1])
 
             elif 'pcre:' in cont[curr_loc][0]:
-                if build.decode('utf-8') in self.reverse_pcre(cont[curr_loc][1]).decode('utf-8'):
+                if build is not None and build.decode('latin_1') in self.reverse_pcre(cont[curr_loc][1]).decode('latin_1'):
                     build = self.reverse_pcre(cont[curr_loc][1])
                 else:
                     break
@@ -582,8 +581,10 @@ class traffic_player:
             elif 'isdataat:' == cont[curr_loc][0]:
                 if dofill== False:
                     self.isdataat = cont[curr_loc][1].split(',')
-                    
-                    self.isdataat = int(self.isdataat[0]) + 30
+                    if self.isdataat[0].startswith('!'):
+                        self.isdataat = 0
+                    else:
+                        self.isdataat = int(self.isdataat[0]) + 30
                 else:
                     isdat = cont[curr_loc][1].split(',')
                     isdat = int(isdat[0])
@@ -632,8 +633,7 @@ class traffic_player:
             the_regex = the_regex[1:-1]
         if the_regex.startswith('/^'):
             the_regex = the_regex[2:]
-        re_opts = the_regex[the_regex.rfind('/'):]
-        
+        re_opts = the_regex[the_regex.rfind('/')+1:]
         the_regex = the_regex[:the_regex.rfind('/')]
         #TODO IMPLEMENT SNORT OPTIONS.
 
@@ -652,10 +652,13 @@ class traffic_player:
         if 'U' in re_opts:
             self.http_modifiers.update({'http_uri':bytearray(the_regex.encode('latin_1'))})
             return None
+
         return bytearray(the_regex.encode('latin_1'))
     def rstring_arrbuilder(self, the_regex):
         if '\s' in the_regex:
             the_regex = the_regex.replace('\\s',' ')
+        if '\:' in the_regex:
+            the_regex = the_regex.replace('\\:','\\\\:')
         matching_unsupported_negate = re.findall('\[\^.+\]',the_regex)
 
         my_re = the_regex
@@ -690,3 +693,5 @@ if __name__ == '__main__':
         ok.send_traffic()
         sleep(5)
     #build_traffic(header, content)
+
+
