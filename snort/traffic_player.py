@@ -105,8 +105,6 @@ class traffic_player:
 
     #------------------------------------------------------------------#
     def build_traffic(self,header,contents):
-        #rule header build  
-        print(contents)
         self.traffic_protocol = header['protocol']
         if self.client is None or self.client =='RANDOM':
             self.client = str(self.get_ip_address(header['rule_ip_src']))
