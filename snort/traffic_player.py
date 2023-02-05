@@ -242,9 +242,28 @@ class traffic_player:
                         host=x
                     elif 'Accept:' in x:
                         Get_Accept = x
+                    else:
+                        print(x)
+                        if len(x.lower())>1:
+                            tstr = x.lower()
+                            for tl in TLDs:
+                                y = '.' + tl.lower().strip()
+                                print(type(y))
+                                print(type(tstr))
+                                print(y + tstr)
+                                if tstr.endswith(y):
+                                    print("FOUND")
+                                    if x.startswith(': '):
+                                        x = x[2:]
+                                    elif x.startswith(':'):
+                                        x = x[1:]
+                                    host=x
+                                    break
 
             Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept,Path=self.http_modifiers['http_uri'])/self.payload    
             sendp(Server_init_http, verbose=False)
+            print(Server_init_http)
+            print(host)
             #'<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.com/">here</A>.\n</BODY></HTML>'
             serv_payload = bytearray('<HTML><BODY>'.encode('latin_1')) + self.get_valid_random_bytes(randrange(200,6000)) + bytearray('</BODY></HTML>'.encode('latin_1'))
         else:
@@ -671,5 +690,3 @@ if __name__ == '__main__':
         ok.send_traffic()
         sleep(5)
     #build_traffic(header, content)
-
-
