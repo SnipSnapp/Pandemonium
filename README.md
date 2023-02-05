@@ -16,7 +16,7 @@
   Ensure Perl is installed with the following modules:  
     --String::Random , File::Slurper  
 ## Usage
-  Place your snort.conf file within the "config" folder. It MUST be named "Snort_config.txt".  I have a default one provided in there. Its text must be replaced if yours is different. Next place any rules you want to test in a file inside of the "Rules" folder. It will NOT care if a rule is commented out or not, all rules are treated equally. Then configure any IPs/Ports/MACs addresses that you DO NOT want to be generating traffic for. Next, navigate to the folder of your 'main.py' file, and run it as-is.  Different options may/may not work. See output on use for more details. 
+  Place your snort.conf file within the "config" folder. It MUST be named "Snort_config.txt".  I have a default one provided in there. Its text must be replaced if yours is different. Next place any rules you want to test in a file inside of the "Rules" folder. It will NOT care if a rule is commented out or not, all rules are treated equally. Then configure any IPs/Ports/MACs addresses that you DO NOT want to be generating traffic for. Next, navigate to the folder of your 'iDPS.py' file, and run it as-is.  Different options may/may not work. See output on use for more details. 
 ## Supported
 ### Snort Rule Headers
   --flow  
@@ -31,13 +31,13 @@
   --distance  
   --within  
   --isdataat  
-  --pcre
+  --pcre (needs some enhancement)
   --http-header (parts of it)
  
 ### Currently Supported Services/Applications
   --Generic (Unknown apps, these default to pop3)  
   --pop3  
-  --http  
+  --http  (Mostly)
 ### Supported L2/L3 modifications
 #### blacklist IPs
   Add blacklisted IP addresses, or IP address ranges to the blacklist_ips.txt file and it will NOT allow IP randomization to use those IPs
@@ -53,21 +53,17 @@
   --Designate IPs on command-line  
   --Designate Src/Dst port on command-line  
   
-### Currently Planned Services
+### Currently Planned Service Modifiers
   --http_cookie  
-  --http_header  
-  --http_uri  
   --http_raw_cookie  
-  --http_raw_uri  
   --http_stat_code  
-  --uricontent  
   --urilen  
   --Any additional snort specific service identifiers I find while figurin out rulez.  
   --All scapy service options listed in scapy (Long-term)  
   
 ### Planned additional signature building
-  --Yara  
-  --Command-line processing  
+  --Yara   
   --PCAP building  
+  --Signature Building
   --Suricata (rules are basically snort, but there's a few small processing differences)  
 
