@@ -75,10 +75,10 @@ class Snort_Rule():
         
     def __get_rule_name__(self,rules_list):
         try:
-            return re.search(r'(reference:)(.+?)(\;){1}',rules_list).group().strip(';').replace('reference:','')
-                 
+            return re.search(r'(msg:)(.+?)(\;){1}',rules_list).group().strip(';').replace('msg:','')                  
         except:
-            return re.search(r'(msg:)(.+?)(\;){1}',rules_list).group().strip(';').replace('msg:','')  
+            return re.search(r'(reference:)(.+?)(\;){1}',rules_list).group().strip(';').replace('reference:','')
+             
             
             
     def return_name(self):
