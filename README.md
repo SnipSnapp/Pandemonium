@@ -49,9 +49,7 @@
   Currently, the tool takes a snort configuration file which forces the tool to follow a snort config for port and ip address selection.
 ## Planned:
 ### Planned L2/L3 Modification
-  --Designate MACs on command-line  
-  --Designate IPs on command-line  
-  --Designate Src/Dst port on command-line  
+  #### ADD ABILITY TO DESIGNATE WHAT THE ROUTING TABLE IS. THIS IS CRITICAL-PATH. WILL BE DONE BEFORE ANYTHING ELSE NEXT AFTER OPERATING IN PROD NETWORK.
   
 ### Currently Planned Service Modifiers
   --http_cookie  
