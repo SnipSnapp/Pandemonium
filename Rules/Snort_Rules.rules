@@ -1,1 +1,2 @@
-
+#Put your snort rules anywhere in the directory this file is in. 
+#I can't put all the ones I used for testing in here for obvious reasons.  Please download Snort rules from any source and you can play them here at your own discretion.
