@@ -1,5 +1,6 @@
 from scapy.all import *
 from scapy.layers import http
+from scapy.route import Route
 from random import randrange
 from random import randbytes
 from ipaddress import IPv4Network, IPv4Address
@@ -55,6 +56,13 @@ for i,ele in enumerate(BLACKLIST_MACS):
     BLACKLIST_MACS[i] = ele.strip()
 
 class traffic_player:
+    myroutes = None
+    with open('Snort/config/Routes.txt','r') as f:
+        myroutes=f.readlines()
+        f.close
+    for x in myroutes:
+        if not x.startswith('#'):
+            Route.add(net=x.split('\t')[0].strip(),gw=x.split('\t')[1].strip())
     with open('Snort/config/blacklist_ips.txt', 'r') as f:
         BLACKLIST_IPS = f.readlines()
         f.close
@@ -105,6 +113,7 @@ class traffic_player:
 
     #------------------------------------------------------------------#
     def build_traffic(self,header,contents):
+        #rule header build  
         self.traffic_protocol = header['protocol']
         if self.client is None or self.client =='RANDOM':
             self.client = str(self.get_ip_address(header['rule_ip_src']))
