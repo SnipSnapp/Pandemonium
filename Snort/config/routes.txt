@@ -1,0 +1,19 @@
+#The network routes you have. Use this if you need to 
+#Define actual network routes. This is important if your 
+#interface doesn't have any static routes defined.  Check your
+#Routing tables with:
+#   Linux (terminal):
+#       route -n
+#   Windows (cmd):
+#       route print
+#Format:
+#<Network>/<CIDR>/t<Gateway>
+#ie)
+#0.0.0.0/0  192.168.0.1 
+#IF changing a route in your routing tables enter the route 
+#you're going to change with:
+#delta/t<Network>/<CIDR>/t<Gateway>
+#ie) to change route 0.0.0.0/0 192.168.0.1 to 0.0.0.0/0 192.168.1.1
+#delta  0.0.0.0/0   192.168.0.1
+#0.0.0.0/0  192.168.1.1
+#<Whatever other routes go here...>
