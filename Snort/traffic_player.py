@@ -1,12 +1,12 @@
 from scapy.all import *
 from scapy.layers import http
-from scapy.route import Route
 from random import randrange
 from random import randbytes
 from ipaddress import IPv4Network, IPv4Address
 from time import sleep
 import string
 import subprocess
+from scapy.route import Route
 #Doesn't quite need to be a class, but I don't feel comfortable not leaving as a function.
 import re
 import base64
@@ -55,14 +55,16 @@ with open('Snort/config/blacklist_macs.txt', 'r') as f:
 for i,ele in enumerate(BLACKLIST_MACS):
     BLACKLIST_MACS[i] = ele.strip()
 
+with open('Snort/config/Routes.txt','r') as f:
+    myroutes=f.readlines()
+    f.close
+for x in myroutes:
+    if not x.startswith('#'):
+        ci = x.split(' ')[0].strip()
+        g = x.split(' ')[1].strip()
+        conf.route.add(net=ci,gw=g)
+
 class traffic_player:
-    myroutes = None
-    with open('Snort/config/Routes.txt','r') as f:
-        myroutes=f.readlines()
-        f.close
-    for x in myroutes:
-        if not x.startswith('#'):
-            Route.add(net=x.split('\t')[0].strip(),gw=x.split('\t')[1].strip())
     with open('Snort/config/blacklist_ips.txt', 'r') as f:
         BLACKLIST_IPS = f.readlines()
         f.close
@@ -700,5 +702,3 @@ if __name__ == '__main__':
         ok.send_traffic()
         sleep(5)
     #build_traffic(header, content)
-
-
