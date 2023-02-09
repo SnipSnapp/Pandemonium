@@ -33,6 +33,7 @@
   --isdataat  
   --pcre (needs some enhancement)
   --http-header (parts of it)
+### Custom tool-specific routing table. Add paths for your traffic to travel down. 
  
 ### Currently Supported Services/Applications
   --Generic (Unknown apps, these default to pop3)  
@@ -47,10 +48,7 @@
   Add blacklisted ports to the blacklist_ports.txt file and it will not allow Port randomization to use those ports.
 #### Snort Configuration for MACs/IPs/Ports
   Currently, the tool takes a snort configuration file which forces the tool to follow a snort config for port and ip address selection.
-## Planned:
-### Planned L2/L3 Modification
-  #### ADD ABILITY TO DESIGNATE WHAT THE ROUTING TABLE IS. THIS IS CRITICAL-PATH. WILL BE DONE BEFORE ANYTHING ELSE. ADDITION IS TRIVIAL AND SHOULD BE DONE BY EOW 2/14/23
-  
+## Planned:  
 ### Currently Planned Service Modifiers
   --http_cookie  
   --http_raw_cookie  
