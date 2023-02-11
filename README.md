@@ -49,8 +49,9 @@
 #### Snort Configuration for MACs/IPs/Ports
   Currently, the tool takes a snort configuration file which forces the tool to follow a snort config for port and ip address selection.
 ## Planned:  
+### Web interface
 ### Currently Planned Service Modifiers
-  --http_cookie  
+  --http_cookie
   --http_raw_cookie  
   --http_stat_code  
   --urilen  
