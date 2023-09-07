@@ -36,7 +36,7 @@
 ### Custom tool-specific routing table. Add paths for your traffic to travel down. 
  
 ### Currently Supported Services/Applications
-  --Generic (Unknown apps, these default to pop3)  
+  --Generic (Unknown apps)  
   --pop3  
   --http  (Mostly)
 ### Supported L2/L3 modifications
