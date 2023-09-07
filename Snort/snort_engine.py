@@ -59,9 +59,21 @@ class Snort_Engine():
             
     def select_rule(self,src_ip,dst_ip,src_mac,dst_mac,idno):
         self.play_pcap(self.rules)
+    def wait_on_send():
+        return
 
-    def play_pcap(self,MoS,MoR,IoR,IoS,SC,UI):
-        
+    def play_pcap(self,MoS,MoR,IoR,IoS,SC,UI,Master_IP=None,Slave_IP=None,Master_MAC=None,Slave_MAC=None, bcast = None):
+        is_MS_Config = None
+        if Slave_IP != None:
+            is_MS_Config = 'M'
+            IoR = Slave_IP
+            if Slave_MAC != None:
+                MoR = Slave_MAC
+        if Master_IP != None:
+            is_MS_Config = 'S'
+            IoS = Master_IP
+            if Master_MAC is not None:
+                MoS = Master_MAC
         if '-' in UI:
             numbos = UI.strip().split('-')
             try:
@@ -94,7 +106,7 @@ class Snort_Engine():
                 head_placehold =self.rules[itemno].rules[0].copy()
                 print(opt_placehold)
                 print(head_placehold)
-                traffic_player(head_placehold,opt_placehold,MoS,MoR,IoS,IoR).send_traffic() 
+                traffic_player(head_placehold,opt_placehold,MoS,MoR,IoS,IoR).send_traffic(bcast) 
             if playone:
                 return
             print('**************'+(len(itemno)*'*') + '**************')
