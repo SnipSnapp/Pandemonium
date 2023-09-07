@@ -78,7 +78,7 @@ class traffic_player:
     for i,ele in enumerate(BLACKLIST_PORTS):
         BLACKLIST_PORTS[i] = int(ele.strip())
     
-    def __init__(self, header, contents, client_mac, server_mac,sender_ip,recv_ip):
+    def __init__(self, header, contents, client_mac, server_mac,sender_ip,recv_ip, MS = None):
         self.traffic_protocol = None
         self.client = sender_ip
         self.client_port = None
@@ -97,8 +97,14 @@ class traffic_player:
         self.http_modifiers= {'http_cookie':'','http_header':bytearray(),'http_uri':bytearray('/'.encode('latin_1')),'http_raw_cookie':'',
         'http_raw_header':'','http_raw_uri':'','http_stat_code':'','uricontent':'/','urilen':'','http_method':'GET'}
         self.build_traffic(header,contents)
+        if MS == 'S':
+            while True:
+                await_orders()
         
-
+    def await_orders():
+        if True:
+            pass
+        pass
     def get_random_mac(self):
         global BLACKLIST_MACS
         choices='1234567890ABCDEF'
@@ -148,20 +154,31 @@ class traffic_player:
             print(self.http_modifiers)
         print('|-----------|\n')
         
-    def send_full_convo(self):
+    def send_full_convo(self, bcast = None):
         opts = [('SAckOK','')]
         #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
-        client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
-        server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        if bcast is None:
+            client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
+            server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        else:
+            client_IP_Layer = IP(src=self.client, dst=self.server)
+            server_IP_Layer = IP(src=self.server,dst=self.client)
         if self.payload_flow[1] == 'established':
             client_Hello = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port,  flags='S',  options=opts)
-            sendp(client_Hello, verbose=False)
-
+            if bcast is None:
+                sendp(client_Hello, verbose=False)
+            else:
+                send(client_Hello, verbose=False)
             Server_SA = server_IP_Layer/TCP(sport=self.server_port,dport = self.client_port, flags='SA', seq=client_Hello.seq, ack=client_Hello.ack + 1,options = opts)
-            sendp(Server_SA, verbose=False)
-
+            if bcast is None:
+                sendp(Server_SA, verbose=False)
+            else:
+                send(Server_SA, verbose=False)
             client_A = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags ='A', seq=Server_SA.seq + 1, ack=Server_SA.ack)
-            sendp(client_A, verbose=False)
+            if bcast is None:
+                sendp(client_A, verbose=False)
+            else:
+                send(client_A, verbose=False)
         serv_pload = None
         client_payload = None
         if self.payload_flow[0] == 'from_server':
@@ -174,38 +191,61 @@ class traffic_player:
             Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA', seq = client_A.seq, ack = client_A.ack)/serv_pload
         else:
             Server_payload = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='PA',)/serv_pload
+        if bcast is None:
+            sendp(Server_payload, verbose=False)
+        else:
+            send(Server_payload, verbose=False)
 
-        sendp(Server_payload, verbose=False)
-        
         Client_Resp_1 = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='PA', seq = Server_payload.seq, ack = len(Server_payload[Raw].load))/client_payload
-        sendp(Client_Resp_1, verbose=False)
-
+        if bcast is None:
+            sendp(Client_Resp_1, verbose=False)
+        else:
+            send(Client_Resp_1, verbose=False)
 
         client_A = client_IP_Layer/TCP(sport = self.client_port, dport = self.server_port, flags='A',seq = Server_payload.seq, ack= len(Server_payload[Raw].load))
-        sendp(client_A, verbose=False)
+        if bcast is None:
+            sendp(client_A, verbose=False)
+        else:
+            send(client_A, verbose=False)
 
         server_A = server_IP_Layer/TCP(sport = self.server_port, dport = self.client_port, flags='A', seq = Server_payload.seq, ack=len(Client_Resp_1[Raw].load))
-        sendp(server_A, verbose=False)
+        if bcast is None:
+            sendp(server_A, verbose=False)
+        else:
+            send(server_A, verbose=False)
 
         server_pre_fin_psh = server_IP_Layer/TCP(sport = self.server_port,dport = self.client_port, flags='FPA', seq = len(Server_payload[Raw].load) + 1, ack = len(Client_Resp_1[Raw].load) )/bytearray(self.get_valid_random_bytes(randrange(1,len(Client_Resp_1[Raw].load)+2)))
-        sendp(server_pre_fin_psh, verbose=False)
+        if bcast is None:
+            sendp(server_pre_fin_psh, verbose=False)
+        else:
+            send(server_pre_fin_psh, verbose=False)
 
         client_FA = client_IP_Layer/TCP(sport=self.client_port, dport=self.server_port, flags='FA', seq=len(Client_Resp_1[Raw].load)+ 1, ack=len(server_pre_fin_psh[Raw].load))
-        sendp(client_FA, verbose=False)
+        if bcast is None:
+            sendp(client_FA, verbose=False)
+        else:
+            send(client_FA, verbose=False)
 
         serv_fin_ack = server_IP_Layer/TCP(sport=self.server_port, dport=self.client_port, flags='A', seq=client_FA.ack, ack=client_FA.seq +1)
-        sendp(serv_fin_ack, verbose=False)
+        if bcast is None:
+            sendp(serv_fin_ack, verbose=False)
+        else:
+            send(serv_fin_ack, verbose=False)
         #send(serv_signoff)
-    def send_udp_convo(self):
+    def send_udp_convo(self, bcast=None):
         opts = [('SAckOK','')]
         #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
-        client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
-        server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        if bcast is None:
+            client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
+            server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        else:
+            client_IP_Layer = IP(src=self.client, dst=self.server)
+            server_IP_Layer = IP(src=self.server,dst=self.client)
         
         for i in range(10):
             sendp(client_IP_Layer/UDP(sport = self.client_port, dport=self.server_port)/self.payload)
             sendp(server_IP_Layer/UDP(sport = self.server_port, dport=self.client_port)/self.payload)
-    def send_full_http(self):
+    def send_full_http(self, bcast = None):
         #self.http_modifiers= {'http_cookie':'','http_header':'','http_uri':'/','http_raw_cookie':'',
         #'http_raw_header':'','http_raw_uri':'','http_stat_code':'','uricontent':'/','urilen':'','http_method':'GGET'}
         global TLDs, UAs
@@ -222,8 +262,12 @@ class traffic_player:
         Get_encode = 'gzip, deflate'
         
         opts = [('SAckOK','')]
-        client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
-        server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        if bcast is None:
+            client_IP_Layer = Ether(src=self.client_mac,dst=self.server_mac)/IP(src=self.client, dst=self.server)
+            server_IP_Layer = Ether(src=self.server_mac,dst=self.client_mac)/IP(src=self.server,dst=self.client)
+        else:
+            client_IP_Layer = IP(src=self.client, dst=self.server)
+            server_IP_Layer = IP(src=self.server,dst=self.client)     
         theseq=0
         theack=0
         if self.payload_flow[1] == 'established':
@@ -271,29 +315,36 @@ class traffic_player:
 
 
             Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Unknown_Headers=unknown_load,Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept,Path=self.http_modifiers['http_uri'])/self.payload    
-            sendp(Server_init_http, verbose=False)
+            if bcast is None:
+                sendp(Server_init_http, verbose=False)
+            else:
+                send(Server_init_http, verbose=False)
             #'<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">\n<TITLE>301 Moved</TITLE></HEAD><BODY>\n<H1>301 Moved</H1>\nThe document has moved\n<A HREF="http://www.google.com/">here</A>.\n</BODY></HTML>'
             serv_payload = bytearray('<HTML><BODY>'.encode('latin_1')) + self.get_valid_random_bytes(randrange(200,600)) + bytearray('</BODY></HTML>'.encode('latin_1'))
         else:
             serv_payload=self.payload
 
         Server_resp_init = server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port, flags='A', seq=Server_init_http.seq, ack= Server_init_http.ack)
-        sendp(Server_resp_init,verbose=False)
-
+        if bcast is None:
+            sendp(Server_resp_init,verbose=False)
+        else:
+            send(Server_resp_init,verbose=False)
         Server_Send_HTML=server_IP_Layer/TCP(sport=self.server_port,dport=self.client_port,flags='PA', seq=Server_init_http.seq,ack=Server_resp_init.ack)/http.HTTP()/http.HTTPResponse(Server=random.choice(['Apache','gws']), Location=bytearray('http://'.encode('latin_1'))+bytearray(host.encode('latin_1'))+self.http_modifiers.get('http_uri'),Content_Type='text/html; charset=UTF-8')/serv_payload
-        sendp(Server_Send_HTML,verbose=False)
+        if bcast is None:
+            sendp(Server_Send_HTML,verbose=False)
+        else:
+            send(Server_Send_HTML,verbose=False)
         #client_FA = client_IP_Layer/TCP(sport=self.client_port,dport=self.server_port,flags='FA', seq=)
 
-    def send_traffic(self):
-
+    def send_traffic(self, bcast=None):
         if self.traffic_protocol == 'tcp':
             if self.payload_service in 'http':
-                self.send_full_http()
+                self.send_full_http(bcast)
                 
             else:
-                self.send_full_convo()
+                self.send_full_convo(bcast)
         elif self.traffic_protocol =='udp':
-            self.send_udp_convo()
+            self.send_udp_convo(bcast)
         
 #Potential for infinite loops below function.  Future: Get rid of by checking the src. IP ranges and only finding IP addresses for randomization outside.
 #Also Need to include RFC 1918 addresses for random IP addresses for local IPs for hosts.
