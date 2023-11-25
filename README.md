@@ -17,6 +17,8 @@
     --String::Random , File::Slurper  
 ## Usage
   Place your snort.conf file within the "config" folder. It MUST be named "Snort_config.txt".  I have a default one provided in there. Its text must be replaced if yours is different. Next place any rules you want to test in a file inside of the "Rules" folder. It will NOT care if a rule is commented out or not, all rules are treated equally. Then configure any IPs/Ports/MACs addresses that you DO NOT want to be generating traffic for. Next, navigate to the folder of your 'iDPS.py' file, and run it as-is.  Different options may/may not work. See output on use for more details. 
+
+  MAKE SURE that your rules are UTF-8 encoded. There are no checks for encoding.
 ## Supported
 ### Snort Rule Headers
   --flow  
