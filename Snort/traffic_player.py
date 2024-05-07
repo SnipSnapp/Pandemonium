@@ -153,7 +153,8 @@ class traffic_player:
         if self.payload_service in 'http':
             print(self.http_modifiers)
         print('|-----------|\n')
-        
+    def TCP_IP_Convo(self,packet):
+        pass   
     def send_full_convo(self, bcast = None):
         opts = [('SAckOK','')]
         #send(IP(src=self.client, dst=self.server, flags='DF')/TCP(sport=self.client_port,  flags='S',  dport=self.server_port,options=opts))
@@ -253,9 +254,17 @@ class traffic_player:
         
 
         letters = string.ascii_lowercase
-        
-        host = ''.join(random.choice(letters) for i in range(random.randint(5,20))) + '.'+random.choice(TLDs).strip().lower()
-        
+        if b'http' in self.http_modifiers['http_uri']:
+            try:
+                host = self.http_modifiers['http_uri'].decode('latin_1').split('/')[2]
+            except:
+                try:
+                    host = self.http_modifiers['http_uri'].decode('latin_1').split('/')[1]
+                except:
+                    host = self.http_modifiers['http_uri'].decode('latin_1').split('/')[0]        
+        else:
+            host = ''.join(random.choice(letters) for i in range(random.randint(5,20))) + '.'+random.choice(TLDs).strip().lower()
+        print(host)
         Usr_Agent = ''.join(random.choice(UAs))
         Usr_Agent = Usr_Agent.strip().strip(' ')
         Get_Accept = '*/*'
@@ -286,7 +295,10 @@ class traffic_player:
         if self.payload_flow[0] =='from_client':
             if len(self.http_modifiers['http_header']) >= 1:
                 header_opts = self.http_modifiers['http_header'].decode('latin_1').split('\r\n')
+                print ('\n\n\n')
+                TL_check = False
                 for x in header_opts:
+                    print(x)
                     if 'User-Agent:' in x:
                         if 'User-Agent: ' in x:
                             Usr_Agent = x[len('User-Agent: '):]
@@ -307,13 +319,30 @@ class traffic_player:
                                     elif x.startswith(':'):
                                         x = x[1:]
                                     host=x
+                                    TL_check = True
                                     break
-                if 'User-Agent:'.encode('latin_1') in self.payload and len(self.payload) > 1:
-                    unknown_load = self.payload.decode('latin_1').split(':')
-                    unknown_load = {unknown_load[0]:unknown_load[1]}
-                    Usr_Agent=None
+                        if TL_check == False:
+                            self.payload = x
+                print ('\n\n\n')
+                print(TL_check)
+                try:
+                    if 'User-Agent:'.encode('latin_1') in self.payload.encode('latin_1') and len(self.payload) > 1:
+                        try:
+                            unknown_load = self.payload.encode('latin_1').split(':')
+                        except:
+                            unknown_load = self.payload.decode('latin_1').split(':')
+                        unknown_load = {unknown_load[0]:unknown_load[1]}
+                        Usr_Agent=None
+                except Exception:
+                    if str('User-Agent:'.encode('latin_1')) in self.payload.decode('latin_1') and len(self.payload) > 1:
+                        try:
+                            unknown_load = self.payload.decode('latin_1').split(':')
+                        except:
+                            unknown_load = self.payload.encode('latin_1').split(':')
+                        unknown_load = {unknown_load[0]:unknown_load[1]}
+                        Usr_Agent=None
 
-
+            print(self.payload)
             Server_init_http = client_IP_Layer/TCP(sport=self.client_port,dport = self.server_port, flags='PA', seq=theseq, ack=theack,options = opts)/http.HTTP()/http.HTTPRequest(Unknown_Headers=unknown_load,Method=self.http_modifiers['http_method'],User_Agent=Usr_Agent,Host=host,Accept=Get_Accept,Path=self.http_modifiers['http_uri'])/self.payload    
             if bcast is None:
                 sendp(Server_init_http, verbose=False)
